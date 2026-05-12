@@ -23,14 +23,14 @@
 
 host32.sddc.lab 10.203.5.32/24
 pod-240-vc01.sddc.lab 10.203.240.10/24
-pod-240-nsx01.sddc.lab 10.203.240.11/24
-pod-240-nsx02.sddc.lab 10.203.240.12/24
-pod-240-ops01.sddc.lab 10.203.240.13/24
+pod-240-nsx.sddc.lab 10.203.240.11/24
+pod-240-nsx1.sddc.lab 10.203.240.12/24
+pod-240-ops1.sddc.lab 10.203.240.13/24
 pod-240-collector.sddc.lab 10.203.240.14/24
-pod-240-vsp01.sddc.lab 10.203.240.15/24
+pod-240-vsp1.sddc.lab 10.203.240.15/24
 pod-240-sddcm.sddc.lab 10.203.240.16/24
-pod-240-fleet01.sddc.lab 10.203.240.17/24
-pod-240-int01.sddc.lab 10.203.240.18/24
+pod-240-fleet1.sddc.lab 10.203.240.17/24
+pod-240-int1.sddc.lab 10.203.240.18/24
 pod-240-vidb.sddc.lab 10.203.240.19/24
 pod-240-auto.sddc.lab 10.203.240.20/24
 pod-240-license.sddc.lab 10.203.240.21/24
