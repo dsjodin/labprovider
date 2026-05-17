@@ -364,6 +364,59 @@ This canonical host-IP model is NetBox seeding behavior only. It does not requir
 - Exposed at `http://<S3_FQDN>:<S3_PORT>` (no TLS by default)
 - Data persisted under `S3_DATA_DIR`
 
+Bucket creation example for Velero:
+
+The S3 service must be deployed first:
+
+```bash
+sudo bash bootstrap/provider-box.sh --s3
+```
+
+Install AWS CLI on macOS:
+
+```bash
+brew install awscli
+```
+
+Install AWS CLI on Debian/Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y awscli
+```
+
+Configure an AWS CLI profile using the S3 credentials from `config/provider-box.env`:
+
+```bash
+aws configure --profile provider-box-s3
+```
+
+Use:
+
+```
+AWS Access Key ID: <S3 access key>
+AWS Secret Access Key: <S3 secret key>
+Default region name: us-east-1
+Default output format: json
+```
+
+Create a `velero-backups` bucket:
+
+```bash
+aws --profile provider-box-s3 \
+  --endpoint-url http://<S3_FQDN>:<S3_PORT> \
+  s3api create-bucket \
+  --bucket velero-backups
+```
+
+Verify the bucket:
+
+```bash
+aws --profile provider-box-s3 \
+  --endpoint-url http://<S3_FQDN>:<S3_PORT> \
+  s3api list-buckets
+```
+
 ### SFTPGo
 
 - Single-node SFTP service via Docker Compose
