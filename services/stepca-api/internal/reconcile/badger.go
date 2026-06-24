@@ -3,9 +3,11 @@ package reconcile
 import (
 	"context"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
@@ -14,22 +16,25 @@ import (
 )
 
 // BadgerSource reads step-ca's BadgerDB directly. Couples to step-ca's storage
-// layout; isolated here so a step-ca version bump only touches this file.
+// layout (smallstep/nosql Badger backend); isolated here so a step-ca version
+// bump only touches this file.
 //
-// Layout assumptions (verify per step-ca version):
-//   - bucket "x509_certs"         keyed by serial, value = PEM cert chain
-//   - bucket "revoked_x509_certs" keyed by serial, value = JSON revocation info
+// Verified against step-ca v0.30.2 + smallstep/nosql v0.8.0:
+//   - bucket "x509_certs"         keyed by decimal serial, value = raw DER cert
+//   - bucket "x509_certs_data"    keyed by decimal serial, value = JSON CertificateData
+//   - bucket "revoked_x509_certs" keyed by decimal serial, value = JSON RevokedCertificateInfo
 //
-// step-ca's nosql/badger driver encodes keys as "<bucket>/<key>" (URL-encoded).
-// Keep the prefix layout here; if it changes upstream, replace prefix() and the
-// stripPrefix logic.
+// smallstep/nosql encodes badger keys as
+//   [2-byte LE bucket len][bucket][2-byte LE key len][key]
+// so iterating one bucket means prefix-seeking on its first two segments.
 type BadgerSource struct {
 	Path string
 }
 
 const (
-	bucketIssued  = "x509_certs"
-	bucketRevoked = "revoked_x509_certs"
+	bucketIssued     = "x509_certs"
+	bucketIssuedData = "x509_certs_data"
+	bucketRevoked    = "revoked_x509_certs"
 )
 
 func (b *BadgerSource) open() (*badger.DB, error) {
@@ -39,6 +44,39 @@ func (b *BadgerSource) open() (*badger.DB, error) {
 	return badger.Open(opts)
 }
 
+// bucketPrefix returns the [LE-len][bucket] segment used to prefix-scan one
+// table in the smallstep/nosql Badger encoding.
+func bucketPrefix(bucket string) []byte {
+	out := make([]byte, 2+len(bucket))
+	binary.LittleEndian.PutUint16(out[:2], uint16(len(bucket)))
+	copy(out[2:], bucket)
+	return out
+}
+
+// toBadgerKey mirrors smallstep/nosql/badger/v2.toBadgerKey so we can build
+// the exact same key shape for point lookups (e.g. x509_certs_data by serial).
+func toBadgerKey(bucket, key string) []byte {
+	out := make([]byte, 0, 4+len(bucket)+len(key))
+	var lb, lk [2]byte
+	binary.LittleEndian.PutUint16(lb[:], uint16(len(bucket)))
+	binary.LittleEndian.PutUint16(lk[:], uint16(len(key)))
+	out = append(out, lb[:]...)
+	out = append(out, bucket...)
+	out = append(out, lk[:]...)
+	out = append(out, key...)
+	return out
+}
+
+// certData mirrors db.CertificateData in step-ca. Only the field stepca-api
+// consumes is listed.
+type certData struct {
+	Provisioner *struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Type string `json:"type"`
+	} `json:"provisioner,omitempty"`
+}
+
 func (b *BadgerSource) Issued(ctx context.Context, yield func(store.Cert) error) error {
 	db, err := b.open()
 	if err != nil {
@@ -46,38 +84,35 @@ func (b *BadgerSource) Issued(ctx context.Context, yield func(store.Cert) error)
 	}
 	defer db.Close()
 
+	prefix := bucketPrefix(bucketIssued)
 	return db.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
-		prefix := prefix(bucketIssued)
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 			item := it.Item()
-			serial := stripPrefix(item.Key(), prefix)
-			if serial == "" {
-				continue
-			}
-			var pemBytes []byte
+			var raw []byte
 			if err := item.Value(func(v []byte) error {
-				pemBytes = append(pemBytes[:0], v...)
+				raw = append(raw[:0], v...)
 				return nil
 			}); err != nil {
 				return err
 			}
-			cert, err := decodeCert(pemBytes)
+			cert, err := x509.ParseCertificate(raw)
 			if err != nil {
-				// One bad row should not abort the whole pass.
+				// Bad row shouldn't abort the whole pass; reconcile picks it
+				// up on the next tick if it heals.
 				continue
 			}
 			if err := yield(store.Cert{
-				Serial:      serial,
+				Serial:      serialHex(cert.SerialNumber),
 				CommonName:  cert.Subject.CommonName,
 				SANs:        collectSANs(cert),
 				NotBefore:   cert.NotBefore,
 				NotAfter:    cert.NotAfter,
-				Provisioner: "",
+				Provisioner: lookupProvisioner(txn, cert.SerialNumber.String()),
 				Status:      store.StatusActive,
 			}); err != nil {
 				return err
@@ -87,15 +122,35 @@ func (b *BadgerSource) Issued(ctx context.Context, yield func(store.Cert) error)
 	})
 }
 
-// revokedRecord matches the fields step-ca stores in revoked_x509_certs. The
-// upstream struct lives in step-ca's authority package; mirror only what we
-// consume here so the dependency stays narrow.
+func lookupProvisioner(txn *badger.Txn, decimalSerial string) string {
+	item, err := txn.Get(toBadgerKey(bucketIssuedData, decimalSerial))
+	if err != nil {
+		return ""
+	}
+	var raw []byte
+	if err := item.Value(func(v []byte) error {
+		raw = append(raw[:0], v...)
+		return nil
+	}); err != nil {
+		return ""
+	}
+	var cd certData
+	if err := json.Unmarshal(raw, &cd); err != nil {
+		return ""
+	}
+	if cd.Provisioner == nil {
+		return ""
+	}
+	return cd.Provisioner.Name
+}
+
+// revokedRecord mirrors authority/db.RevokedCertificateInfo. The upstream
+// struct has no JSON tags so fields serialize under their Go names; mirror
+// only the fields stepca-api consumes.
 type revokedRecord struct {
-	Serial        string    `json:"serial"`
-	ProvisionerID string    `json:"provisionerID"`
-	ReasonCode    int       `json:"reasonCode"`
-	Reason        string    `json:"reason"`
-	RevokedAt     time.Time `json:"revokedAt"`
+	Serial    string    `json:"Serial"`
+	Reason    string    `json:"Reason"`
+	RevokedAt time.Time `json:"RevokedAt"`
 }
 
 func (b *BadgerSource) Revoked(ctx context.Context, yield func(serial, reason string, at time.Time) error) error {
@@ -105,19 +160,15 @@ func (b *BadgerSource) Revoked(ctx context.Context, yield func(serial, reason st
 	}
 	defer db.Close()
 
+	prefix := bucketPrefix(bucketRevoked)
 	return db.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
-		prefix := prefix(bucketRevoked)
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 			item := it.Item()
-			serial := stripPrefix(item.Key(), prefix)
-			if serial == "" {
-				continue
-			}
 			var raw []byte
 			if err := item.Value(func(v []byte) error {
 				raw = append(raw[:0], v...)
@@ -129,13 +180,15 @@ func (b *BadgerSource) Revoked(ctx context.Context, yield func(serial, reason st
 			if err := json.Unmarshal(raw, &rec); err != nil {
 				continue
 			}
-			if rec.Serial == "" {
-				rec.Serial = serial
+			n, ok := new(big.Int).SetString(rec.Serial, 10)
+			if !ok {
+				continue
 			}
-			if rec.RevokedAt.IsZero() {
-				rec.RevokedAt = time.Now().UTC()
+			at := rec.RevokedAt
+			if at.IsZero() {
+				at = time.Now().UTC()
 			}
-			if err := yield(rec.Serial, rec.Reason, rec.RevokedAt); err != nil {
+			if err := yield(serialHex(n), rec.Reason, at); err != nil {
 				return err
 			}
 		}
@@ -143,28 +196,8 @@ func (b *BadgerSource) Revoked(ctx context.Context, yield func(serial, reason st
 	})
 }
 
-func prefix(bucket string) []byte {
-	return []byte(bucket + "/")
-}
-
-func stripPrefix(key, prefix []byte) string {
-	if len(key) <= len(prefix) {
-		return ""
-	}
-	return string(key[len(prefix):])
-}
-
-func decodeCert(pemBytes []byte) (*x509.Certificate, error) {
-	for {
-		block, rest := pem.Decode(pemBytes)
-		if block == nil {
-			return nil, fmt.Errorf("no PEM block in cert payload")
-		}
-		if block.Type == "CERTIFICATE" {
-			return x509.ParseCertificate(block.Bytes)
-		}
-		pemBytes = rest
-	}
+func serialHex(n *big.Int) string {
+	return strings.ToLower(fmt.Sprintf("%x", n))
 }
 
 func collectSANs(c *x509.Certificate) []string {
