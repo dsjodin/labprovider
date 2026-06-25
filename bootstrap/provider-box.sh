@@ -31,10 +31,13 @@ Usage:
   sudo bash bootstrap/provider-box.sh --sftp --remove
   sudo bash bootstrap/provider-box.sh --technitium
   sudo bash bootstrap/provider-box.sh --technitium --remove
+  sudo bash bootstrap/provider-box.sh --dns-sync
+  sudo bash bootstrap/provider-box.sh --dns-sync --remove
   sudo bash bootstrap/provider-box.sh --all
   sudo bash bootstrap/provider-box.sh --all --remove
 
-Note: --technitium is NOT included in --all. It must be deployed explicitly.
+Note: --technitium and --dns-sync are NOT included in --all. They must be
+deployed explicitly.
 USAGE
 }
 
@@ -506,6 +509,10 @@ require_module_file "${BOOTSTRAP_DIR}/technitium.sh"
 # shellcheck disable=SC1090
 source "${BOOTSTRAP_DIR}/technitium.sh"
 
+require_module_file "${BOOTSTRAP_DIR}/dns-sync.sh"
+# shellcheck disable=SC1090
+source "${BOOTSTRAP_DIR}/dns-sync.sh"
+
 require_root
 
 TARGET_SERVICE=""
@@ -519,7 +526,7 @@ for arg in "$@"; do
       [[ "${REMOVE_MODE}" -eq 0 ]] || fail "Duplicate --remove flag"
       REMOVE_MODE=1
       ;;
-    --unbound|--ntp|--rsyslog|--ca|--depot|--keycloak|--netbox|--s3|--sftp|--technitium|--all)
+    --unbound|--ntp|--rsyslog|--ca|--depot|--keycloak|--netbox|--s3|--sftp|--technitium|--dns-sync|--all)
       [[ -z "${TARGET_SERVICE}" ]] || fail "Specify exactly one service flag"
       TARGET_SERVICE="$arg"
       ;;
@@ -637,6 +644,16 @@ case "${TARGET_SERVICE}" in
     else
       require_common_vars
       do_technitium
+    fi
+    ;;
+  --dns-sync)
+    require_env_file
+    load_env
+    if [[ "${REMOVE_MODE}" -eq 1 ]]; then
+      remove_dns_sync
+    else
+      require_common_vars
+      do_dns_sync
     fi
     ;;
   --all)
