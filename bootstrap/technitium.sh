@@ -244,9 +244,62 @@ verify_technitium_dns_listener() {
   fail "Technitium DNS listener did not become ready on 127.0.0.1:53. Check 'docker compose ps' and 'docker compose logs'."
 }
 
+technitium_json_string_field() {
+  local field="$1"
+  sed -n "s/.*\"${field}\":\"\\([^\"]*\\)\".*/\\1/p" | head -n1
+}
+
+# Configure Technitium's upstream forwarder so it can resolve external names
+# and act as the sole nameserver for the host and lab. Authenticates with the
+# first-boot admin credentials (the module tells the operator to change the
+# password from the console afterwards) and sets forwarders over UDP. The
+# settings API is idempotent, so re-running with the same value succeeds. The
+# forwarder setting persists in the Technitium data dir and is removed with it.
+configure_technitium_forwarder() {
+  local console_url login_response token set_response status recursion
+  console_url="http://127.0.0.1:${TECHNITIUM_HTTP_PORT}"
+
+  login_response="$(curl --silent --show-error \
+    "${console_url}/api/user/login?user=admin&pass=admin" || true)"
+  token="$(printf '%s' "${login_response}" | technitium_json_string_field token)"
+  [[ -n "${token}" ]] || \
+    fail "Failed to authenticate to the Technitium API to set the upstream forwarder. Response: ${login_response}"
+
+  set_response="$(curl --silent --show-error --get \
+    --data-urlencode "token=${token}" \
+    --data-urlencode "forwarders=${DNS_FORWARDER}" \
+    --data-urlencode "forwarderProtocol=Udp" \
+    "${console_url}/api/settings/set" || true)"
+  status="$(printf '%s' "${set_response}" | technitium_json_string_field status)"
+  [[ "${status}" == "ok" ]] || \
+    fail "Failed to set the Technitium upstream forwarder ${DNS_FORWARDER}. Response: ${set_response}"
+
+  # Leave the default recursion policy (AllowOnlyForPrivateNetworks) in place,
+  # but confirm recursion is not disabled or external names cannot be resolved.
+  recursion="$(printf '%s' "${set_response}" | technitium_json_string_field recursion)"
+  [[ "${recursion}" != "Deny" ]] || \
+    fail "Technitium recursion is disabled (recursion=Deny); external names cannot be resolved. Enable recursion for the lab networks in the Technitium console."
+
+  echo "Technitium upstream forwarder set to ${DNS_FORWARDER} (UDP)."
+}
+
+verify_technitium_external_resolution() {
+  local attempt
+  echo "Verifying Technitium can resolve external names via ${DNS_FORWARDER}."
+  for attempt in $(seq 1 30); do
+    if [[ -n "$(dig +short +time=2 +tries=1 @127.0.0.1 -p 53 one.one.one.one A 2>/dev/null)" ]]; then
+      echo "Technitium resolved an external name."
+      return 0
+    fi
+    sleep 2
+  done
+  fail "Technitium cannot resolve external names — check DNS_FORWARDER reachability."
+}
+
 do_technitium() {
   require_technitium_vars
   require_technitium_ca_vars
+  resolve_dns_forwarder
   common_pkgs
   docker_pkgs
   require_ca_ready_for_technitium
@@ -267,6 +320,8 @@ do_technitium() {
   ufw allow "${TECHNITIUM_HTTP_PORT}/tcp" || true
   ufw allow "${TECHNITIUM_HTTPS_PORT}/tcp" || true
   verify_technitium_dns_listener
+  configure_technitium_forwarder
+  verify_technitium_external_resolution
   point_host_resolver_at_technitium
   echo "Technitium is ready. Web console: http://${DNS_FQDN}:${TECHNITIUM_HTTP_PORT}"
   echo "Step-ca-issued certificate is mounted at /etc/provider-box/technitium-certs inside the container."
