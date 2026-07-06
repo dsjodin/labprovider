@@ -338,6 +338,7 @@ Realm bootstrap:
 - Runs via Docker Compose with Authentik server, Authentik worker, and PostgreSQL
 - Requires step-ca to be initialized first
 - Intended for VMware Cloud Foundation 9 identity federation with OIDC authentication and outbound SCIM 2.0 provisioning (which Keycloak lacks)
+- Runs in parallel with Keycloak on separate FQDNs and ports when both are deployed (including via `--all`); federate VCF against one of them, using Authentik when SCIM provisioning is required
 - Exposed at `https://<AUTHENTIK_FQDN>:<AUTHENTIK_PORT>` (`9443` by default)
 - Persists application data under `${AUTHENTIK_DIR}/data` and PostgreSQL data under `${AUTHENTIK_DIR}/postgres`
 - Uses a step-ca-issued certificate stored under `${AUTHENTIK_DIR}/certs/<AUTHENTIK_FQDN>` as `fullchain.pem` and `privkey.pem`, picked up by Authentik's built-in certificate discovery
