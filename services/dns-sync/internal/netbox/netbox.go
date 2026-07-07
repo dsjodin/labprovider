@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/netip"
 	"os"
@@ -71,6 +72,13 @@ func (c *Client) authHeader() string {
 	return "Token " + c.Token
 }
 
+// errorBody reads up to ~200 chars of a non-2xx response body (NetBox puts
+// the reason in a "detail" field) so errors are diagnosable from logs.
+func errorBody(r io.Reader) string {
+	b, _ := io.ReadAll(io.LimitReader(r, 200))
+	return strings.TrimSpace(string(b))
+}
+
 type ipAddress struct {
 	Address string `json:"address"`
 	DNSName string `json:"dns_name"`
@@ -123,7 +131,7 @@ func (c *Client) getPage(ctx context.Context, url string) (*ipListResp, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("netbox GET %s: status %d", url, resp.StatusCode)
+		return nil, fmt.Errorf("netbox GET %s: status %d body=%s", url, resp.StatusCode, errorBody(resp.Body))
 	}
 	var out ipListResp
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {

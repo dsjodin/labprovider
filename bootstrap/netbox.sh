@@ -438,6 +438,92 @@ netbox_api_auth_header() {
   printf '%s' "${header}"
 }
 
+# Auto-provision the NetBox token dns-sync consumes, mirroring the technitium
+# module's provision_technitium_api_token: same storage conventions, same
+# validity-probe idempotency. An operator-placed (SOPS/age) token always wins
+# while NetBox still accepts it. Skipped with a notice when
+# DNS_SYNC_SECRETS_DIR is unset so --netbox stays deployable standalone.
+provision_dns_sync_netbox_token() {
+  local token_file stored code response key token composite ids id
+
+  if [[ -z "${DNS_SYNC_SECRETS_DIR:-}" ]]; then
+    echo "NOTICE: DNS_SYNC_SECRETS_DIR is not set; skipping dns-sync NetBox token provisioning."
+    return 0
+  fi
+  validate_var_path "${DNS_SYNC_SECRETS_DIR}"
+  token_file="${DNS_SYNC_SECRETS_DIR}/netbox.token"
+  install -d -m 0700 "${DNS_SYNC_SECRETS_DIR}"
+
+  if [[ -s "${token_file}" ]]; then
+    stored="$(cat "${token_file}")"
+    code="$(curl --silent --show-error \
+      --output /dev/null \
+      --write-out '%{http_code}' \
+      --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+      --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+      -H "Accept: application/json" \
+      -H "Authorization: Bearer ${stored}" \
+      "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/" || true)"
+    if [[ "${code}" == "200" ]]; then
+      echo "Reusing existing dns-sync NetBox token: ${token_file}"
+      chmod 0600 "${token_file}"
+      chown 1000:1000 "${token_file}"
+      return 0
+    fi
+    echo "Stored dns-sync NetBox token was rejected (HTTP ${code}); provisioning a replacement."
+  fi
+
+  # Housekeeping: retire previous provider-box dns-sync tokens so redeploys
+  # do not accumulate live credentials. Best-effort: enumeration failures are
+  # reported and skipped, never fatal.
+  response="$(curl --silent --show-error \
+    --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+    --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+    -H "Accept: application/json" \
+    -H "Authorization: ${NETBOX_API_AUTH_HEADER}" \
+    "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/users/tokens/?description=provider-box%20dns-sync" || true)"
+  ids="$(printf '%s' "${response}" | tr -d '\n' | grep -o '"id":[0-9]*' | cut -d: -f2 || true)"
+  if [[ -n "${ids}" ]]; then
+    for id in ${ids}; do
+      code="$(curl --silent --show-error \
+        --output /dev/null \
+        --write-out '%{http_code}' \
+        --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+        --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+        -X DELETE \
+        -H "Authorization: ${NETBOX_API_AUTH_HEADER}" \
+        "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/users/tokens/${id}/" || true)"
+      [[ "${code}" == "204" ]] && echo "Deleted previous dns-sync NetBox token (id ${id})." || \
+        echo "NOTICE: could not delete previous dns-sync NetBox token id ${id} (HTTP ${code})."
+    done
+  fi
+
+  response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"${NETBOX_SUPERUSER_NAME}\",\"password\":\"${NETBOX_SUPERUSER_PASSWORD}\",\"description\":\"provider-box dns-sync\"}")" || \
+    fail "Failed to provision a dns-sync NetBox token."
+  key="$(printf '%s' "${response}" | json_string_field key)"
+  token="$(printf '%s' "${response}" | json_string_field token)"
+  [[ -n "${key}" && -n "${token}" ]] || \
+    fail "dns-sync NetBox token provisioning returned an incomplete response (key length: ${#key}, token length: ${#token})."
+  composite="nbt_${key}.${token}"
+
+  code="$(curl --silent --show-error \
+    --output /dev/null \
+    --write-out '%{http_code}' \
+    --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+    --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+    -H "Accept: application/json" \
+    -H "Authorization: Bearer ${composite}" \
+    "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/" || true)"
+  [[ "${code}" == "200" ]] || \
+    fail "NetBox rejected the freshly provisioned dns-sync token: HTTP ${code} (scheme: Bearer, key length: ${#key}, token length: ${#token})."
+
+  install -m 0600 /dev/null "${token_file}"
+  printf '%s' "${composite}" > "${token_file}"
+  chmod 0600 "${token_file}"
+  chown 1000:1000 "${token_file}"
+  echo "Provisioned a dns-sync NetBox token at: ${token_file}"
+}
+
 netbox_get_object_id() {
   local endpoint="$1"
   local query="$2"
@@ -653,6 +739,7 @@ do_netbox() {
   )
   wait_for_netbox_https
   seed_netbox_via_api
+  provision_dns_sync_netbox_token
   ufw allow "${NETBOX_PORT}/tcp" || true
   print_netbox_summary
 }
