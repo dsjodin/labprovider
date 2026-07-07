@@ -402,32 +402,59 @@ json_string_field() {
   sed -n "s/.*\"${field}\":\"\\([^\"]*\\)\".*/\\1/p" | head -n1
 }
 
-netbox_api_token() {
-  local response token
+# NetBox 4.6 provisions v2 tokens: the response carries "key" (12 chars) and
+# "token" (40 chars, returned only at provisioning), and the wire format is
+# "Authorization: Bearer nbt_<key>.<token>" (users/constants.py TOKEN_PREFIX,
+# tokens.py get_auth_header_prefix). Sending the legacy "Token <secret>"
+# header to a v2 deployment fails with 403 "Invalid v1 token". Pre-4.6
+# responses have no "token" field; those keep the legacy header.
+netbox_api_auth_header() {
+  local response key token header scheme http_code
   response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"${NETBOX_SUPERUSER_NAME}\",\"password\":\"${NETBOX_SUPERUSER_PASSWORD}\"}")" || \
     fail "Failed to provision a NetBox API token for ${NETBOX_SUPERUSER_NAME}."
-  token="$(printf '%s' "${response}" | json_string_field key)"
-  [[ -n "${token}" ]] || fail "Failed to extract the NetBox API token from the provision response."
-  printf '%s' "${token}"
+  key="$(printf '%s' "${response}" | json_string_field key)"
+  [[ -n "${key}" ]] || fail "Failed to extract the NetBox API token key from the provision response."
+  token="$(printf '%s' "${response}" | json_string_field token)"
+
+  if [[ -n "${token}" ]]; then
+    scheme="Bearer"
+    header="Bearer nbt_${key}.${token}"
+  else
+    scheme="Token"
+    header="Token ${key}"
+  fi
+
+  http_code="$(curl --silent --show-error \
+    --output /dev/null \
+    --write-out '%{http_code}' \
+    --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+    --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+    -H "Accept: application/json" \
+    -H "Authorization: ${header}" \
+    "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/" || true)"
+  [[ "${http_code}" == "200" ]] || \
+    fail "NetBox rejected the provisioned API token: HTTP ${http_code} (scheme: ${scheme}, key length: ${#key}, token length: ${#token})."
+
+  printf '%s' "${header}"
 }
 
 netbox_get_object_id() {
   local endpoint="$1"
   local query="$2"
-  netbox_api_request GET "${endpoint}?${query}&brief=1" "" "Authorization: Token ${NETBOX_API_TOKEN}" | json_first_id
+  netbox_api_request GET "${endpoint}?${query}&brief=1" "" "Authorization: ${NETBOX_API_AUTH_HEADER}" | json_first_id
 }
 
 netbox_create_object() {
   local endpoint="$1"
   local payload="$2"
-  netbox_api_request POST "${endpoint}" "${payload}" "Authorization: Token ${NETBOX_API_TOKEN}" | json_first_id
+  netbox_api_request POST "${endpoint}" "${payload}" "Authorization: ${NETBOX_API_AUTH_HEADER}" | json_first_id
 }
 
 netbox_patch_object() {
   local endpoint="$1"
   local object_id="$2"
   local payload="$3"
-  netbox_api_request PATCH "${endpoint}${object_id}/" "${payload}" "Authorization: Token ${NETBOX_API_TOKEN}" >/dev/null
+  netbox_api_request PATCH "${endpoint}${object_id}/" "${payload}" "Authorization: ${NETBOX_API_AUTH_HEADER}" >/dev/null
 }
 
 ensure_netbox_site() {
@@ -572,7 +599,7 @@ ensure_provider_box_host_ip_address() {
 
 seed_netbox_via_api() {
   local line name fqdn protocol port record_fqdn record_ip record_source
-  NETBOX_API_TOKEN="$(netbox_api_token)"
+  NETBOX_API_AUTH_HEADER="$(netbox_api_auth_header)"
 
   ensure_netbox_site
   ensure_netbox_manufacturer

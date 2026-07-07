@@ -61,6 +61,16 @@ func New(baseURL, token, caBundle string) (*Client, error) {
 	}, nil
 }
 
+// authHeader builds the Authorization header for the stored token. NetBox 4.6
+// v2 tokens are stored as the full composite "nbt_<key>.<token>" and sent as
+// a Bearer credential; anything else is a legacy v1 token.
+func (c *Client) authHeader() string {
+	if strings.HasPrefix(c.Token, "nbt_") {
+		return "Bearer " + c.Token
+	}
+	return "Token " + c.Token
+}
+
 type ipAddress struct {
 	Address string `json:"address"`
 	DNSName string `json:"dns_name"`
@@ -104,7 +114,7 @@ func (c *Client) getPage(ctx context.Context, url string) (*ipListResp, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Token "+c.Token)
+	req.Header.Set("Authorization", c.authHeader())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.HTTP.Do(req)

@@ -18,7 +18,7 @@ import (
 
 func main() {
 	netboxURL := flag.String("netbox-url", os.Getenv("NETBOX_URL"), "NetBox base URL")
-	netboxToken := flag.String("netbox-token", "", "NetBox API token (or NETBOX_TOKEN env; prefer NETBOX_TOKEN_FILE for SOPS/age)")
+	netboxToken := flag.String("netbox-token", "", "NetBox API token (or NETBOX_TOKEN env; prefer NETBOX_TOKEN_FILE for SOPS/age). NetBox 4.6+ v2 tokens must be the full composite nbt_<key>.<token>")
 	netboxTokenFile := flag.String("netbox-token-file", os.Getenv("NETBOX_TOKEN_FILE"), "Path to file containing the NetBox API token")
 	netboxCABundle := flag.String("netbox-ca-bundle", os.Getenv("NETBOX_CA_BUNDLE"), "Optional PEM bundle for NetBox TLS")
 	techURL := flag.String("technitium-url", os.Getenv("TECHNITIUM_URL"), "Technitium base URL, e.g. http://dns.sddc.lab:5380")
