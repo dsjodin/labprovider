@@ -28,6 +28,11 @@ require_unbound_vars() {
 do_unbound() {
   require_unbound_vars
   validate_records_file
+  # Both DNS backends share DNS_FORWARDER; render it into the unbound
+  # forward-addr via the existing UNBOUND_FORWARDER template variable.
+  resolve_dns_forwarder
+  UNBOUND_FORWARDER="${DNS_FORWARDER}"
+  export UNBOUND_FORWARDER
   common_pkgs
   unbound_pkgs
   configure_resolv_conf

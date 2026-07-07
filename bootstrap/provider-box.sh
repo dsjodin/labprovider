@@ -445,6 +445,21 @@ validate_dns_backend() {
     fail "DNS_BACKEND must be either unbound or technitium"
 }
 
+# DNS_FORWARDER is the shared upstream forwarder for whichever DNS_BACKEND is
+# selected. It falls back to UNBOUND_FORWARDER (the original variable) when
+# unset or empty, so existing envs keep working. Resolves and validates in
+# place, exporting DNS_FORWARDER for template rendering and API calls.
+resolve_dns_forwarder() {
+  if [[ -z "${DNS_FORWARDER:-}" ]]; then
+    [[ -n "${UNBOUND_FORWARDER:-}" ]] || \
+      fail "Missing required variable: DNS_FORWARDER (or UNBOUND_FORWARDER for backward compatibility)"
+    echo "DNS_FORWARDER is not set; falling back to UNBOUND_FORWARDER (${UNBOUND_FORWARDER})."
+    DNS_FORWARDER="${UNBOUND_FORWARDER}"
+  fi
+  validate_var_ipv4 "${DNS_FORWARDER}"
+  export DNS_FORWARDER
+}
+
 require_dns_backend() {
   local wanted="$1"
   validate_dns_backend

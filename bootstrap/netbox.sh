@@ -25,6 +25,49 @@ validate_netbox_secret_key() {
     fail "NETBOX_SECRET_KEY must be at least 50 characters long"
 }
 
+validate_netbox_api_token_pepper() {
+  [[ "$1" != CHANGE_ME* ]] || \
+    fail "Replace NETBOX_API_TOKEN_PEPPER before continuing, or leave it unset to auto-generate"
+  (( ${#1} >= 50 )) || \
+    fail "NETBOX_API_TOKEN_PEPPER must be at least 50 characters long"
+}
+
+# NetBox 4.6 hashes v2 API tokens and requires API_TOKEN_PEPPERS, or token
+# provisioning fails with HTTP 500 "API_TOKEN_PEPPERS is not defined". The
+# pepper is generated once and persisted under NETBOX_DIR/secrets so redeploys
+# reuse the same value: CHANGING THE PEPPER INVALIDATES EVERY EXISTING API
+# TOKEN, INCLUDING THE dns-sync TOKEN. The persisted file is authoritative on
+# re-runs; NETBOX_API_TOKEN_PEPPER only seeds it on first deploy when set.
+# The container reads pepper id 1 from API_TOKEN_PEPPER_1 (netbox-docker maps
+# it to API_TOKEN_PEPPERS = {1: <value>}); higher ids are for later rotation.
+resolve_netbox_api_token_pepper() {
+  local pepper_file="${NETBOX_DIR}/secrets/api_token_pepper"
+  local pepper_value
+
+  install -d -m 0700 "${NETBOX_DIR}/secrets"
+
+  if [[ -f "${pepper_file}" ]]; then
+    echo "Reusing existing NetBox API token pepper: ${pepper_file}"
+  elif [[ -n "${NETBOX_API_TOKEN_PEPPER:-}" ]]; then
+    validate_netbox_api_token_pepper "${NETBOX_API_TOKEN_PEPPER}"
+    echo "Materializing NETBOX_API_TOKEN_PEPPER to managed file: ${pepper_file}"
+    install -m 0600 /dev/null "${pepper_file}"
+    printf '%s' "${NETBOX_API_TOKEN_PEPPER}" > "${pepper_file}"
+  else
+    require_command openssl
+    echo "Generating a NetBox API token pepper at: ${pepper_file}"
+    install -m 0600 /dev/null "${pepper_file}"
+    openssl rand -base64 48 | tr -d '\n' > "${pepper_file}"
+  fi
+  chmod 0600 "${pepper_file}"
+
+  pepper_value="$(cat "${pepper_file}")"
+  (( ${#pepper_value} >= 50 )) || \
+    fail "NetBox API token pepper in ${pepper_file} must be at least 50 characters long."
+  NETBOX_API_TOKEN_PEPPER_1="${pepper_value}"
+  export NETBOX_API_TOKEN_PEPPER_1
+}
+
 validate_netbox_image() {
   [[ "${NETBOX_IMAGE}" == *:* ]] || fail "NETBOX_IMAGE must include an explicit image tag"
   [[ "${NETBOX_IMAGE}" != *:latest ]] || fail "NETBOX_IMAGE must not use the latest tag"
@@ -572,6 +615,7 @@ do_netbox() {
   docker_pkgs
   require_ca_ready_for_netbox
   prepare_netbox_directories
+  resolve_netbox_api_token_pepper
   issue_netbox_certificates
   render_netbox_stack
   (
