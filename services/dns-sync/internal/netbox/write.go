@@ -77,7 +77,7 @@ func (c *Client) exists(ctx context.Context, path string, q url.Values) (bool, e
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("netbox GET %s: status %d", path, resp.StatusCode)
+		return false, fmt.Errorf("netbox GET %s: status %d body=%s", path, resp.StatusCode, errorBody(resp.Body))
 	}
 	var out countResp
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {

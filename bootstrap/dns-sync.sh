@@ -45,7 +45,7 @@ require_dns_sync_secrets() {
   local tt_token="${DNS_SYNC_SECRETS_DIR}/technitium.token"
 
   [[ -f "${nb_token}" ]] || fail \
-    "Missing NetBox token at ${nb_token}. Place the decrypted token there (SOPS/age) before running --dns-sync. NetBox 4.6+ v2 tokens must be stored as the full composite nbt_<key>.<token> from token provisioning."
+    "Missing NetBox token at ${nb_token}. It is normally auto-provisioned by --netbox (re-run --netbox); manual SOPS/age placement of a composite nbt_<key>.<token> is the override."
   [[ -f "${tt_token}" ]] || fail \
     "Missing Technitium token at ${tt_token}. Place the decrypted token there (SOPS/age) before running --dns-sync."
 
@@ -145,27 +145,6 @@ apply_dns_seed_to_netbox() {
     fail "Failed to import dns.seed into NetBox"
 }
 
-apply_technitium_forwarder() {
-  if [[ -z "${TECHNITIUM_FORWARDER:-}" ]]; then
-    echo "TECHNITIUM_FORWARDER not set; skipping forwarder configuration."
-    return
-  fi
-  echo "Setting Technitium upstream forwarder: ${TECHNITIUM_FORWARDER}"
-  docker run --rm \
-    --user 1000:1000 \
-    --add-host "$(dns_sync_url_host "${DNS_SYNC_TECHNITIUM_URL}"):127.0.0.1" \
-    -e TECHNITIUM_URL="${DNS_SYNC_TECHNITIUM_URL}" \
-    -e TECHNITIUM_TOKEN_FILE="/run/provider-box/secrets/technitium.token" \
-    -e TECHNITIUM_CA_BUNDLE="/etc/provider-box/certs/root_ca.crt" \
-    -e TECHNITIUM_FORWARDER="${TECHNITIUM_FORWARDER}" \
-    -v "${DNS_SYNC_SECRETS_DIR}:/run/provider-box/secrets:ro" \
-    -v "${CA_DATA_DIR}/certs/root_ca.crt:/etc/provider-box/certs/root_ca.crt:ro" \
-    --network host \
-    "${DNS_SYNC_IMAGE}" \
-    dns-seed set-forwarder || \
-    fail "Failed to set Technitium forwarder"
-}
-
 render_dns_sync_stack() {
   DNS_SYNC_NETBOX_HOST="$(dns_sync_url_host "${DNS_SYNC_NETBOX_URL}")"
   DNS_SYNC_TECHNITIUM_HOST="$(dns_sync_url_host "${DNS_SYNC_TECHNITIUM_URL}")"
@@ -214,7 +193,6 @@ do_dns_sync() {
   require_dns_sync_secrets
   build_dns_sync_image
   apply_dns_seed_to_netbox
-  apply_technitium_forwarder
   render_dns_sync_stack
   (
     cd "${WORKDIR}/dns-sync"
