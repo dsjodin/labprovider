@@ -43,7 +43,7 @@ require_dns_sync_secrets() {
   local tt_token="${DNS_SYNC_SECRETS_DIR}/technitium.token"
 
   [[ -f "${nb_token}" ]] || fail \
-    "Missing NetBox token at ${nb_token}. Place the decrypted token there (SOPS/age) before running --dns-sync."
+    "Missing NetBox token at ${nb_token}. Place the decrypted token there (SOPS/age) before running --dns-sync. NetBox 4.6+ v2 tokens must be stored as the full composite nbt_<key>.<token> from token provisioning."
   [[ -f "${tt_token}" ]] || fail \
     "Missing Technitium token at ${tt_token}. Place the decrypted token there (SOPS/age) before running --dns-sync."
 

@@ -69,7 +69,7 @@ func (c *Client) exists(ctx context.Context, path string, q url.Values) (bool, e
 	if err != nil {
 		return false, err
 	}
-	req.Header.Set("Authorization", "Token "+c.Token)
+	req.Header.Set("Authorization", c.authHeader())
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
@@ -95,7 +95,7 @@ func (c *Client) post(ctx context.Context, path string, body any) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Token "+c.Token)
+	req.Header.Set("Authorization", c.authHeader())
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.HTTP.Do(req)

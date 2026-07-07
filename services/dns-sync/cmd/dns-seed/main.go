@@ -63,7 +63,7 @@ func usage() {
 func runNetboxImport(ctx context.Context, args []string, logger *slog.Logger) error {
 	fs := flag.NewFlagSet("netbox-import", flag.ExitOnError)
 	netboxURL := fs.String("netbox-url", os.Getenv("NETBOX_URL"), "NetBox base URL")
-	netboxToken := fs.String("netbox-token", "", "NetBox API token (or NETBOX_TOKEN env; prefer NETBOX_TOKEN_FILE)")
+	netboxToken := fs.String("netbox-token", "", "NetBox API token (or NETBOX_TOKEN env; prefer NETBOX_TOKEN_FILE). NetBox 4.6+ v2 tokens must be the full composite nbt_<key>.<token>")
 	netboxTokenFile := fs.String("netbox-token-file", os.Getenv("NETBOX_TOKEN_FILE"), "Path to file containing the NetBox API token")
 	netboxCABundle := fs.String("netbox-ca-bundle", os.Getenv("NETBOX_CA_BUNDLE"), "Optional PEM bundle for NetBox TLS")
 	seedPath := fs.String("seed", "", "Path to the seed file (default: <last positional arg>)")
