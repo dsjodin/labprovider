@@ -61,8 +61,8 @@ pod-240-en1.sddc.lab 10.203.240.56/24
 pod-240-en2.sddc.lab 10.203.240.57/24
 pod-240-avi.sddc.lab 10.203.240.58/24
 pod-240-avi1.sddc.lab 10.203.240.59/24
-pod-240-supervisor1 10.203.240.61/24
-pod-240-supervisor2 10.203.240.62/24
-pod-240-supervisor3 10.203.240.63/24
-pod-240-supervisor4 10.203.240.64/24
-pod-240-supervisor5 10.203.240.65/24
+pod-240-supervisor1.sddc.lab 10.203.240.61/24
+pod-240-supervisor2.sddc.lab 10.203.240.62/24
+pod-240-supervisor3.sddc.lab 10.203.240.63/24
+pod-240-supervisor4.sddc.lab 10.203.240.64/24
+pod-240-supervisor5.sddc.lab 10.203.240.65/24
