@@ -204,17 +204,20 @@ wait_for_authentik_https() {
 
   echo "Waiting for Authentik HTTPS endpoint to become ready at ${ready_url}."
 
+  # Per-attempt curl stderr is suppressed: "Recv failure: Connection reset by
+  # peer" is normal while the listener comes up. Only the loop's status lines
+  # and the final result are printed.
   for attempt in $(seq 1 90); do
-    http_code="$(curl --silent --show-error \
+    http_code="$(curl --silent \
       --output /dev/null \
       --write-out '%{http_code}' \
       --insecure \
       --resolve "${AUTHENTIK_FQDN}:${AUTHENTIK_PORT}:127.0.0.1" \
-      "${ready_url}" || true)"
+      "${ready_url}" 2>/dev/null || true)"
 
     case "${http_code}" in
       200|204)
-        echo "Authentik is ready."
+        echo "Authentik HTTP endpoint is ready."
         return 0
         ;;
     esac
@@ -223,6 +226,41 @@ wait_for_authentik_https() {
   done
 
   fail "Authentik failed readiness check at ${ready_url}. Last observed HTTP status: ${http_code}. Check logs with: docker compose logs"
+}
+
+# /-/health/ready/ signals HTTP readiness but not token-auth readiness: for a
+# few seconds after start Authentik rejects even valid tokens with 401/403
+# (run-1 logs show the embedded outpost getting "403 Token invalid/expired" at
+# +0s and succeeding at +3s). The bare brand GET/PATCH and blueprint re-apply
+# would hit that window. Gate on an authenticated call before proceeding;
+# 401/403 are retryable inside the window.
+wait_for_authentik_api_auth() {
+  local attempt http_code
+  local url="https://${AUTHENTIK_FQDN}:${AUTHENTIK_PORT}/api/v3/core/brands/"
+
+  echo "Waiting for Authentik API token authentication to become ready."
+  for attempt in $(seq 1 30); do
+    http_code="$(curl --silent \
+      --output /dev/null \
+      --write-out '%{http_code}' \
+      --insecure \
+      --resolve "${AUTHENTIK_FQDN}:${AUTHENTIK_PORT}:127.0.0.1" \
+      -H "Authorization: Bearer ${AUTHENTIK_API_TOKEN}" \
+      "${url}" 2>/dev/null || true)"
+
+    case "${http_code}" in
+      200)
+        echo "Authentik API token authentication is ready."
+        return 0
+        ;;
+      401|403)
+        ;;
+    esac
+
+    sleep 2
+  done
+
+  fail "Authentik API token authentication did not become ready (last HTTP status: ${http_code}). If this is a re-run, the container may be using persistent data from a previous deployment whose admin token differs from AUTHENTIK_BOOTSTRAP_TOKEN; otherwise it is a transient startup delay - check logs with: docker compose logs server."
 }
 
 authentik_json_string_field() {
@@ -305,15 +343,18 @@ verify_authentik_certificate() {
   local ready_url="https://${AUTHENTIK_FQDN}:${AUTHENTIK_PORT}/-/health/ready/"
 
   # The embedded router refreshes brand TLS material on a periodic interval;
-  # picking up the new web certificate can take a couple of minutes.
+  # picking up the new web certificate can take a couple of minutes. Per-attempt
+  # curl stderr is suppressed: the "self-signed certificate" block prints on
+  # every retry until the pickup happens. Only the loop status and final result
+  # are printed.
   echo "Verifying that Authentik serves the step-ca-issued certificate (may take a few minutes)."
 
   for attempt in $(seq 1 100); do
-    if curl --silent --show-error --fail \
+    if curl --silent --fail \
       --output /dev/null \
       --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
       --resolve "${AUTHENTIK_FQDN}:${AUTHENTIK_PORT}:127.0.0.1" \
-      "${ready_url}"; then
+      "${ready_url}" 2>/dev/null; then
       echo "Authentik is serving the step-ca-issued certificate for ${AUTHENTIK_FQDN}."
       return 0
     fi
@@ -340,6 +381,7 @@ do_authentik() {
   )
   ufw allow "${AUTHENTIK_PORT}/tcp" || true
   wait_for_authentik_https
+  wait_for_authentik_api_auth
   configure_authentik_brand_certificate
   verify_authentik_certificate
 }
