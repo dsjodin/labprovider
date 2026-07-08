@@ -47,7 +47,7 @@ require_dns_sync_secrets() {
   [[ -f "${nb_token}" ]] || fail \
     "Missing NetBox token at ${nb_token}. It is normally auto-provisioned by --netbox (re-run --netbox); manual SOPS/age placement of a composite nbt_<key>.<token> is the override."
   [[ -f "${tt_token}" ]] || fail \
-    "Missing Technitium token at ${tt_token}. Place the decrypted token there (SOPS/age) before running --dns-sync."
+    "Missing Technitium token at ${tt_token}. It is normally auto-provisioned by --technitium (re-run --technitium); manual SOPS/age placement of a token is the override."
 
   [[ -s "${nb_token}" ]] || fail "${nb_token} is empty"
   [[ -s "${tt_token}" ]] || fail "${tt_token} is empty"

@@ -38,8 +38,9 @@ Usage:
   sudo bash bootstrap/provider-box.sh --all
   sudo bash bootstrap/provider-box.sh --all --remove
 
-Note: --technitium and --dns-sync are NOT included in --all. They must be
-deployed explicitly.
+Note: --all deploys the DNS backend selected by DNS_BACKEND (unbound first,
+or technitium after --ca). --dns-sync is NOT included in --all and must be
+deployed explicitly after --all.
 USAGE
 }
 
