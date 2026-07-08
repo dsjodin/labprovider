@@ -13,6 +13,18 @@ All notable changes to this project will be documented in this file.
 - Upgrade Technitium DNS from `13.4.2` to `15.3.0` (the release reviewed for this upgrade, on 2026-07-08 - baseline for the next drift check). The upgrade was assessed against the upstream changelog and verified live: the web service TLS settings API, `createToken`, forwarder settings, and zone/record CRUD are unchanged or backward-compatible (the query-string token form still works on 15.x alongside the new Bearer header), ports and the container uid are unchanged, and a 13.x data directory migrates in place on first 15.x start (zones, records, and API tokens preserved). No bootstrap, compose-template, or dns-sync code changes were required
 - Document the upgrade/rollback procedure in a new README "Upgrading Services" section, including the forward-only warning that a 15.x data directory must not be run under 13.x afterward
 - Record the 15.x API deltas in `services/dns-sync/TECHNITIUM_API.md`: built-in `internal` zones no longer appear in `zones/list` (the `internal` field is absent, the client filter is retained for mixed-version safety), and deleting a non-existent zone/record now returns an error instead of succeeding - which makes the dns-sync invariant "only delete records that List reported" load-bearing for correctness on 15.x
+### Documentation
+- Documentation reconciliation pass: audit all documentation against the code on main and fix drift, with no behavior changes
+- Document both DNS backends end to end: backend module chains (unbound + `unbound.records` rendering vs technitium + dns-sync + NetBox seeding), the one-backend-per-host rule, Technitium bootstrap details (HTTPS console on the step-ca PKCS#12 bundle, persisted pfx password, auto-provisioned API token, systemd-resolved stub-listener handling and what `--remove` restores), and dns-sync (host networking, built-in service records synthesized from the `*_FQDN` variables, token auto-provisioning with SOPS/age override)
+- Correct the quickstart: add `--technitium`/`--dns-sync` with explicit ordering rules (`--ca` before certificate consumers, `--technitium` and `--netbox` before `--dns-sync`), mark the `unbound.records`/`dns.seed` copies optional, and state what `--all` does and does not deploy (the usage note wrongly claimed `--technitium` is never part of `--all`)
+- Document NetBox 4.6 token handling: the persisted API token pepper and the consequence of changing it, the v2 composite `nbt_<key>.<token>` Bearer format, and the auto-provisioned dns-sync token
+- Document the idempotent Docker install behavior (preserve existing Docker, Compose v2 capability check, Docker CE fallback and its Debian assumption), replacing the stale `docker-compose` package claim
+- Document that certificate issuance is DNS-independent via 127.0.0.1 pinning under the single-node assumption
+- Add a module reference table (flag, purpose, dependencies, data dirs, ports, secrets, `--remove` semantics), a secrets inventory (path, owner/mode, loss/regeneration consequences), and a troubleshooting section seeded from real failure modes
+- Fix `config/unbound.records.example`: the five `pod-240-supervisorN` entries lacked a domain suffix and failed FQDN validation when the example was copied verbatim
+- Correct the `DNS_SYNC_SECRETS_DIR` comment and the missing-token fail message: both dns-sync tokens are auto-provisioned (`--netbox`/`--technitium`); manual SOPS/age placement is the override, not the default procedure
+- Update the repository layout (technitium/dns-sync modules and templates, `dns.seed.example`, `keycloak-realm.json.tpl`, `services/`, `docs/`) and the runtime model and removal sections for the container-based DNS chain
+- Add `IMPROVEMENTS.md` with verified non-documentation findings from the audit
 
 ## 2026-07-06
 
@@ -97,7 +109,7 @@ All notable changes to this project will be documented in this file.
 - Harden certificate directory preparation for step-ca-dependent services
 - Add post-start readiness checks for HTTPS services to fail fast when containers do not become reachable
 - Fix Keycloak readiness checks by probing the user-facing HTTPS endpoint instead of `/health`
-- Fix SFTPGo startup failure caused by SQLite “readonly database” errors by ensuring rw bind-mounted persistent directories are recursively owned by the container runtime user (UID:GID 1000:1000)
+- Fix SFTPGo startup failure caused by SQLite "readonly database" errors by ensuring rw bind-mounted persistent directories are recursively owned by the container runtime user (UID:GID 1000:1000)
 - Fix NetBox PostgreSQL startup failure caused by incorrect ownership on the bind-mounted data directory
 
 ---

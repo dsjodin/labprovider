@@ -38,8 +38,9 @@ Usage:
   sudo bash bootstrap/provider-box.sh --all
   sudo bash bootstrap/provider-box.sh --all --remove
 
-Note: --technitium and --dns-sync are NOT included in --all. They must be
-deployed explicitly.
+Note: --all deploys the DNS backend selected by DNS_BACKEND (unbound first,
+or technitium after --ca). --dns-sync is NOT included in --all and must be
+deployed explicitly after --all.
 USAGE
 }
 
@@ -164,17 +165,51 @@ rsyslog_pkgs() {
 
 docker_pkgs() {
   apt_update_once
-  install_pkg docker.io
-  # docker-compose-v2 is the compose package name on Ubuntu 22.04+. It is
-  # verified by capability below instead of by package name, because apt may
-  # resolve transitional names differently across releases.
-  DEBIAN_FRONTEND=noninteractive apt-get install -y docker-compose-v2 || \
-    fail "Failed to install packages: docker-compose-v2"
+
+  # If Docker + Compose v2 already works, do not touch Docker packages.
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    echo "Docker with Compose v2 already installed; ensuring docker service is enabled/running."
+    systemctl enable --now docker
+    return 0
+  fi
+
+  # If Docker exists but Compose v2 is missing, install only the Docker CE Compose plugin.
+  if command -v docker >/dev/null 2>&1; then
+    echo "Docker is installed but Compose v2 is missing; installing docker-compose-plugin."
+    install_pkg docker-compose-plugin
+    systemctl enable --now docker
+    docker compose version >/dev/null 2>&1 || \
+      fail "docker compose v2 is required but not available."
+    return 0
+  fi
+
+  # Docker is not installed, install Docker CE from Docker's official Debian repo.
+  install_pkg ca-certificates curl
+
+  install -m 0755 -d /etc/apt/keyrings
+
+  if [[ ! -f /etc/apt/keyrings/docker.asc ]]; then
+    curl -fsSL https://download.docker.com/linux/debian/gpg \
+      -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+  fi
+
+  local debian_codename
+  debian_codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+
+  cat > /etc/apt/sources.list.d/docker.list <<EOF
+deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${debian_codename} stable
+EOF
+
+  apt-get update || fail "apt-get update failed after adding Docker CE repository"
+
+  install_pkg docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
   require_command docker
-  systemctl enable docker
-  systemctl start docker
+  systemctl enable --now docker
+
   docker compose version >/dev/null 2>&1 || \
-    fail "docker compose v2 is required but not available. Install docker-compose-v2 (Ubuntu 22.04+) or docker-compose-plugin from Docker's official apt repository."
+    fail "docker compose v2 is required but not available."
 }
 
 configure_resolv_conf() {
