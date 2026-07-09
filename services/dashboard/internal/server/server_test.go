@@ -95,7 +95,7 @@ func TestCollect_AllUp(t *testing.T) {
 // One source down must not affect the others; its panel is unavailable.
 func TestCollect_Isolation(t *testing.T) {
 	srv := testServer(t, Options{
-		Certs:  stubCerts{err: errors.New("badger open failed")},
+		Certs:  stubCerts{err: errors.New("connect stepca postgres failed")},
 		DNS:    stubDNS{out: dns.Overview{TLSReachable: true}},
 		IPAM:   stubIPAM{err: errors.New("netbox 500")},
 		Docker: stubDocker{listErr: errors.New("dial /var/run/docker.sock: no such file")},
@@ -103,7 +103,7 @@ func TestCollect_Isolation(t *testing.T) {
 
 	page := srv.collect(context.Background())
 
-	if !page.Certs.Status.Unavailable() || !strings.Contains(page.Certs.Status.Error, "badger") {
+	if !page.Certs.Status.Unavailable() || !strings.Contains(page.Certs.Status.Error, "postgres") {
 		t.Errorf("certs should be unavailable with error, got %+v", page.Certs.Status)
 	}
 	if !page.DNS.Status.OK() {

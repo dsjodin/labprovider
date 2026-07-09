@@ -156,6 +156,13 @@ unbound_pkgs() {
   install_pkg unbound
 }
 
+# step-ca needs jq to rewrite ca.json's db/crl stanzas after the container
+# self-initializes (the init flow always writes a badger stanza first).
+ca_pkgs() {
+  apt_update_once
+  install_pkg jq
+}
+
 ntp_pkgs() {
   apt_update_once
   install_pkg chrony
@@ -320,6 +327,14 @@ validate_var_path() {
 
 validate_var_not_placeholder() {
   [[ "$1" != CHANGE_ME* ]] || fail "Replace placeholder value before continuing"
+}
+
+# A safe unquoted SQL identifier (role/db/user name). These names are
+# interpolated directly into SQL by the CA module, so restrict them to
+# [A-Za-z_][A-Za-z0-9_]* to keep that interpolation injection-free.
+validate_pg_identifier() {
+  [[ "$2" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || \
+    fail "$1 must be a valid PostgreSQL identifier ([A-Za-z_][A-Za-z0-9_]*): got '$2'"
 }
 
 validate_service_cert_duration() {

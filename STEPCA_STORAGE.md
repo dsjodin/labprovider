@@ -1,15 +1,26 @@
-# step-ca Storage Layout (BadgerDB)
+# step-ca Storage Layout
 
-> **Current location.** This reader now lives in
-> `services/dashboard/internal/certs/certs.go` (the dashboard's Certificates
-> panel), migrated from the removed `services/stepca-api`. The bucket layout,
-> key encoding, and snapshot-on-read approach documented below are unchanged and
-> still load-bearing. References below to `internal/reconcile/badger.go`,
-> `cmd/stepca-api`, and the SQLite inventory (including the hex-vs-decimal serial
-> note) describe the old service and are historical; the dashboard reader keeps
-> serials in step-ca's native form and has no SQLite store.
+> **RETIRED: BadgerDB reader.** step-ca now runs on a dedicated PostgreSQL
+> backend and the dashboard reads that, not badger. The BadgerDB material below
+> (bucket layout, binary key encoding, snapshot-on-read, the badger/v3 pin) is
+> **historical** - kept only to explain the migration and in case a badger CA is
+> ever inspected. The live reader is `services/dashboard/internal/certs/certs.go`
+> and it uses `github.com/jackc/pgx/v5`; there is no badger dependency, no
+> snapshot copy, and no `db/` mount anymore.
+>
+> **What carried over to postgres.** step-ca uses the SAME opaque key-value
+> model on postgres (smallstep/nosql): one table per bucket, each with two
+> columns `nkey BYTEA` and `nvalue BYTEA`. The value encodings are identical to
+> badger - `x509_certs.nvalue` is raw DER, `x509_certs_data.nvalue` is
+> `CertificateData` JSON (lowercase tags), `revoked_x509_certs.nvalue` is
+> `RevokedCertificateInfo` JSON (capitalized Go field names). The dashboard
+> reuses the exact same DER/JSON decode. What CHANGED: the table IS the bucket,
+> so `nkey` is the plain decimal serial string, NOT badger's
+> `[len][bucket][len][key]` binary concat - the reader `SELECT`s per table
+> instead of prefix-scanning. Serials are still normalized to lowercase hex at
+> read time so issued and revoked join.
 
-Reference for how the dashboard's certificate reader reads issued/revoked certificates directly from step-ca's embedded database. This is the **version-fragile** part — it depends on step-ca's internal storage format, which is not a stable public API.
+Reference for how the dashboard's certificate reader reads issued/revoked certificates from step-ca's backend. This is the **version-fragile** part — it depends on step-ca's stored value shapes, which are not a stable public API.
 
 > All of this is isolated in one file (`services/dashboard/internal/certs/certs.go`). When step-ca bumps and something here changes, that is the only file to fix.
 

@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-09 (step-ca PostgreSQL backend)
+
+### Features
+- Move step-ca from BadgerDB to a DEDICATED PostgreSQL backend (`stepca-postgres`), never shared with NetBox/Authentik (module independence, CA isolation). `templates/docker-compose.step-ca.yml.tpl` gains a `stepca-postgres` service (healthcheck-gated; step-ca `depends_on` it healthy) published on `127.0.0.1:${CA_POSTGRES_PORT}` only. New `CA_POSTGRES_*` variables mirror `NETBOX_POSTGRES_*`; `CA_POSTGRES_DATA_DIR` is a sibling of `CA_DATA_DIR` (never nested - the `chown -R 1000:1000 CA_DATA_DIR` step would corrupt postgres data). Every new bind-mount uses the `${VAR:?...}` blank-mount guard.
+- Supply the postgres password to step-ca via a mounted `.pgpass` file (`PGPASSFILE`), so it never appears in `ca.json`'s `dataSource` DSN - matching the file-based `CA_PASSWORD_FILE` convention. step-ca's pgx driver reads it.
+- `--ca` rewrites `ca.json` after the container self-initializes: `db` -> `postgresql`, and `crl.enabled` on (with `generateOnRevoke`). The remote admin API is NOT enabled and there is no write/revoke path. The unused badger `db/` dir is moved aside (`db.pre-postgres.<timestamp>`, retained, not deleted), not removed.
+- `--ca` provisions a read-only postgres role (`CA_POSTGRES_RO_USER`) with `SELECT` on the cert tables only (`x509_certs`, `x509_certs_data`, `revoked_x509_certs`), which the dashboard reads through.
+- Guards: `--ca` refuses to run against an existing badger-backed CA (Phase 2 rebuilds on postgres, it does not migrate in place), and refuses to bind a freshly initialized root onto a postgres store that already holds cert rows.
+- Repoint the dashboard Certificates panel at step-ca's postgres via `github.com/jackc/pgx/v5`, reusing the existing DER/JSON blob decode. `--dashboard` materializes the RO password into `DASHBOARD_SECRETS_DIR`. Because the table IS the bucket on postgres, `nkey` is the plain decimal serial and the reader `SELECT`s per table instead of prefix-scanning badger's binary keys.
+
+### Removals
+- Remove BadgerDB from the dashboard entirely: the `github.com/dgraph-io/badger/v3` dependency and pin, the snapshot-copy code, the `db/` bind mount, `DASHBOARD_STEPCA_DB`/`DASHBOARD_STEPCA_SNAPSHOT_DIR`, and `badger_fixture_test.go`. Replaced by `DASHBOARD_STEPCA_DSN` + `DASHBOARD_STEPCA_PG_PASSWORD_FILE`. Resolves IMPROVEMENTS.md #16 (the badger major-version coupling no longer exists).
+
+### Security
+- The CA postgres port is loopback-only (`127.0.0.1`), for the host-networked dashboard; never exposed off-host. The dashboard holds only a `SELECT`-scoped role, so its blast radius stays "can read cert metadata".
+- Evaluated `damhau/stepca-web` as the admin console and REJECTED it (recorded in IMPROVEMENTS.md #17): its access footprint (DB creds + remote admin API + cert-issuing JWK key + `ca.json` write + systemd control) makes a compromise a full CA compromise, it is single-maintainer/low-adoption in the trust path, and it assumes a systemd host. Chose the existing read-only dashboard panel instead.
+
+### Notes
+- Needs on-host confirmation (a sandbox cannot cover): the reissue chain against the new root; that the pinned image's pgx honors `PGPASSFILE` at runtime; PG TLS posture (`sslmode=disable` is loopback-only today); and the CRL endpoint path. Docker was unavailable in the build sandbox, so the live postgres reader test is skip-gated behind `STEPCA_TEST_PG_DSN`; the decode path is covered by unit tests.
+
+---
+
 ## 2026-07-09
 
 ### Features

@@ -17,9 +17,11 @@ type Config struct {
 	TLSCert string // path to the step-ca-issued cert; empty => HTTP fallback
 	TLSKey  string
 
-	// Certificates panel (step-ca BadgerDB, read via snapshot).
-	StepCADBPath   string
-	StepCASnapshot string
+	// Certificates panel (step-ca PostgreSQL backend, read-only role).
+	// DSN carries no password; the password comes from a file (or env) so it
+	// stays out of the DSN string, matching the repo's file-based secrets.
+	StepCADSN      string
+	StepCAPassword string
 	CertWarnDays   int
 
 	// DNS panel (Technitium).
@@ -49,8 +51,8 @@ func Load() Config {
 		TLSCert: os.Getenv("DASHBOARD_TLS_CERT"),
 		TLSKey:  os.Getenv("DASHBOARD_TLS_KEY"),
 
-		StepCADBPath:   os.Getenv("DASHBOARD_STEPCA_DB"),
-		StepCASnapshot: os.Getenv("DASHBOARD_STEPCA_SNAPSHOT_DIR"),
+		StepCADSN:      os.Getenv("DASHBOARD_STEPCA_DSN"),
+		StepCAPassword: readToken("DASHBOARD_STEPCA_PG_PASSWORD_FILE", "DASHBOARD_STEPCA_PG_PASSWORD"),
 		CertWarnDays:   envInt("DASHBOARD_CERT_WARN_DAYS", 30),
 
 		TechnitiumURL:      os.Getenv("DASHBOARD_TECHNITIUM_URL"),

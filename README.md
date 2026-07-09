@@ -400,7 +400,8 @@ Removal behavior:
 - Runs as a single-node Smallstep CA via Docker Compose
 - Acts as the internal PKI for Provider Box services
 - Exposed at `https://<CA_FQDN>:<CA_PORT>`
-- Persists data under `CA_DATA_DIR`
+- Persists data under `CA_DATA_DIR` (keys, `ca.json`) and stores CA state in a
+  dedicated PostgreSQL backend (`stepca-postgres`)
 - Allows service certificates up to `SERVICE_CERT_DURATION` (`8760h` by default)
 
 Behavior:
@@ -411,12 +412,58 @@ Behavior:
 - Generates a random CA password automatically when no password input is provided
 - Running `--ca` configures the provisioner default and maximum X.509 certificate duration from `SERVICE_CERT_DURATION`
 
+PostgreSQL backend:
+
+- step-ca stores its state in a DEDICATED postgres container (`stepca-postgres`),
+  never shared with NetBox/Authentik (module independence, CA isolation).
+- step-ca uses postgres as an opaque key-value store (one table per bucket,
+  each `nkey`/`nvalue` `BYTEA`), not a relational schema. Cert attributes live
+  inside the `BYTEA` blobs, so anything reading the DB parses the blobs; it
+  cannot filter/join on cert fields in SQL.
+- The postgres owner password is supplied to step-ca via a mounted `.pgpass`
+  file (`PGPASSFILE`), so it never appears in `ca.json`'s `dataSource` DSN.
+- The postgres port is published on `127.0.0.1:<CA_POSTGRES_PORT>` only, for the
+  host-networked dashboard's read-only cert panel. It is never exposed off-host.
+- `--ca` also creates a read-only role (`CA_POSTGRES_RO_USER`) with `SELECT` on
+  the cert tables only; the dashboard reads through it.
+- CRL is enabled (`crl.enabled`) so revocation is served. The remote admin API
+  is NOT enabled and there is no write/revoke path in this design.
+- On first init the container self-initializes with badger, then `--ca`
+  rewrites `ca.json`'s `db` stanza to postgresql, restarts, and moves the unused
+  badger dir aside (`db.pre-postgres.<timestamp>`, retained, not deleted).
+  Switching backends does NOT migrate data: badger state does not move to
+  postgres.
+
 Important notes:
 
 - `CA_PASSWORD` is convenient for lab use, but when set in `provider-box.env` it is still stored there in plaintext.
-- Reinitialization requires deleting the contents of `CA_DATA_DIR`
+- Reinitialization requires deleting the contents of `CA_DATA_DIR`. `--ca`
+  refuses to run against an existing badger-backed CA: Phase 2 rebuilds on
+  postgres rather than migrating in place.
+- `CA_POSTGRES_DATA_DIR` MUST be a sibling of `CA_DATA_DIR`, never nested under
+  it (the `chown -R 1000:1000 CA_DATA_DIR` step would corrupt postgres data).
 - No repository-shipped static CA password file is required
 - The root certificate is available from `/roots.pem`
+
+Rebuild + reissue runbook (run on-host; `--ca` does not do the destructive
+steps for you):
+
+1. Stop dependents you are about to reissue, then remove the CA runtime:
+   `sudo bash bootstrap/provider-box.sh --ca --remove`.
+2. Wipe the CA state (lab certs are disposable): remove `CA_DATA_DIR` and
+   `CA_POSTGRES_DATA_DIR`. Wiping both keeps the new root and the empty postgres
+   store consistent; `--ca` refuses a new root against a non-empty store.
+3. `sudo bash bootstrap/provider-box.sh --ca` - initializes on postgres, enables
+   CRL, and creates the read-only role.
+4. Reissue every service certificate against the new root, one at a time,
+   verifying each before the next. With `DNS_BACKEND=technitium` the order is:
+   `--technitium`, `--netbox`, `--authentik`, `--depot`, `--sftp`, `--dashboard`,
+   then re-run `--dns-sync` (its NetBox/Technitium tokens are reissued too).
+   Keycloak (if deployed) reissues the same way. Verify each leaf chains to the
+   new root, e.g.
+   `openssl verify -CAfile "$CA_DATA_DIR/certs/root_ca.crt" <service-leaf>.crt`.
+5. Confirm CRL is served: `curl --cacert "$CA_DATA_DIR/certs/root_ca.crt"
+   --resolve "$CA_FQDN:$CA_PORT:127.0.0.1" https://$CA_FQDN:$CA_PORT/crl`.
 
 Certificate issuance is DNS-independent by design. Every module that requests a certificate (Technitium, depot, Keycloak, Authentik, NetBox, SFTPGo) pins `CA_FQDN` to `127.0.0.1` with `--add-host`/`--resolve` instead of resolving it, so certificates can be issued before any DNS backend exists. This relies on the single-node assumption: step-ca and every certificate-consuming service run on the same host, so `127.0.0.1` always reaches the CA. The dns-sync readiness gates and the bootstrap health checks use the same pinning for the same reason.
 
@@ -618,7 +665,9 @@ other service.
   "not configured" without blanking the page:
   1. Certificates (step-ca) - active certs, subject/SANs, provisioner,
      notBefore/notAfter, days-to-expiry against a warn threshold. Reads step-ca's
-     BadgerDB via a read-only snapshot copy (see `STEPCA_STORAGE.md`).
+     dedicated postgres over `127.0.0.1:<CA_POSTGRES_PORT>` with a `SELECT`-only
+     role, decoding the opaque cert blobs (see `STEPCA_STORAGE.md`). The RO
+     password is provisioned by `--dashboard` into `DASHBOARD_SECRETS_DIR`.
   2. DNS (Technitium) - zones, managed record counts, forwarder, TLS reachability.
   3. IPAM (NetBox) - prefix/IP counts and the `dns_name` inventory.
   4. Services (Docker) - container state/health/uptime/image for the stacks.
