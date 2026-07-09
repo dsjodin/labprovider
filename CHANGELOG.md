@@ -19,6 +19,12 @@ All notable changes to this project will be documented in this file.
 ### Notes
 - The dashboard is run manually and is NOT wired into `bootstrap/provider-box.sh` or `--all`. A `--dashboard` bootstrap module, a history/collector, and UI auth are the documented phase 2. Run it with the standalone `services/dashboard/docker-compose.yml`; add the `DASHBOARD_*` block from `config/provider-box.env.example` to your `config/provider-box.env`
 
+### Dashboard follow-ups (first-deploy fixes)
+- Fix the HTTP fallback: with a `DASHBOARD_TLS_CERT` path set but the cert file missing/unreadable, the server crash-looped on bind instead of falling back. It now validates the cert/key (loads the keypair) before binding, logs a WARNING and serves plaintext HTTP when it cannot, and reports the mode actually chosen in the startup log's `tls` field
+- Add `services/dashboard/scripts/issue-dashboard-cert.sh`: issues the dashboard's TLS leaf cert from step-ca (mirrors the technitium cert-issuance docker run - `--add-host ca:127.0.0.1`, admin provisioner + password file, `--not-after SERVICE_CERT_DURATION`, bundled leaf+chain into `DASHBOARD_CERT_DIR` owned by uid 1000), so HTTPS works on a clean deploy
+- Add `services/dashboard/scripts/run.sh`: one correct launch path that runs the documented compose command (`--env-file ../../config/provider-box.env`) with `DASHBOARD_DOCKER_GID` resolved from the host docker group, avoiding the all-blank-vars / invalid-mount failure of a bare `docker compose up`
+- Document creating the dedicated read-only NetBox and Technitium tokens (view-only IPAM object permission + a read-only API token for NetBox; a non-admin user's token for Technitium) so the DNS/IPAM panels can be enabled without reusing an admin token
+
 ## 2026-07-08
 
 ### Fixes
