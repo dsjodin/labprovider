@@ -124,9 +124,12 @@ blast radius.
   depends on the storage-format details it documents. `step-ca_api_design.md`
   is now historical (it describes the collector API that became phase 2 of the
   dashboard); kept as background, not an active spec.
-- Note: `services/dashboard` itself is standalone and not yet wired into
-  bootstrap - that (a `--dashboard` module, inclusion in `--all`) is the
-  dashboard's phase 2, tracked in `services/dashboard/README.md`.
+- Note: `services/dashboard` is now a first-class bootstrap module
+  (`bootstrap/dashboard.sh`, flag `--dashboard`, included in `--all` last)
+  that publishes `DASHBOARD_FQDN` through `provider_box_builtin_fqdns`. The
+  standalone `scripts/run.sh` path is retained for manual use. Remaining
+  dashboard phase-2 items (history/collector, UI auth) are tracked in
+  `services/dashboard/README.md`.
 
 ## 8. --unbound host resolver takeover has no restore path
 
