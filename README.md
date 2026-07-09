@@ -605,12 +605,13 @@ aws --profile provider-box-s3 \
 
 The SFTP protocol service remains separate from the HTTPS UI configuration.
 
-### Dashboard (standalone, read-only)
+### Dashboard (read-only)
 
-`services/dashboard` is a standalone, **read-only** "current state" view of the
-Provider Box services. It is **not** a bootstrap module and is **not** part of
-`--all`; it is run manually (see `services/dashboard/README.md` for the full run
-doc). It has its own listener and does not alter any other service.
+`services/dashboard` is a **read-only** "current state" view of the Provider Box
+services. Deploy it with `--dashboard` (also run by `--all`, last) or run it
+standalone with `services/dashboard/scripts/run.sh` (see
+`services/dashboard/README.md`). It has its own listener and does not alter any
+other service.
 
 - **What it shows.** Five panels, each fetched on page load under its own short
   timeout and isolated so a dead or unconfigured source renders "unavailable" /
@@ -624,12 +625,13 @@ doc). It has its own listener and does not alter any other service.
   5. Recent errors - a bounded per-container log tail, parsing `dns-sync`'s slog
      JSON for `level>=error`.
 - **How to run it.** Add the `DASHBOARD_*` block from
-  `config/provider-box.env.example` to your `config/provider-box.env`, issue its
-  TLS cert (`services/dashboard/scripts/issue-dashboard-cert.sh`) and place the
-  scoped read-only tokens (steps in `services/dashboard/README.md`), then start
-  it with `services/dashboard/scripts/run.sh` (wraps the documented compose
-  command and resolves the host docker gid). HTTPS is default; a missing cert
-  logs a warning and falls back to HTTP rather than failing to start.
+  `config/provider-box.env.example` to your `config/provider-box.env`, then
+  `sudo bash bootstrap/provider-box.sh --dashboard` (issues the cert from
+  step-ca, brings up the stack, verifies HTTPS, and publishes `DASHBOARD_FQDN`).
+  The scoped read-only tokens are optional - without them the NetBox/Technitium
+  panels show "not configured". Standalone use is still supported via
+  `services/dashboard/scripts/run.sh`. HTTPS is default; a missing cert logs a
+  warning and falls back to HTTP rather than failing to start.
 - **Security posture.** Read-only everywhere (no upstream write path). It uses a
   **dedicated minimum-read-scope NetBox token** (never the dns-sync/bootstrap
   admin token), a scoped Technitium token, the step-ca DB read-only via snapshot,
@@ -638,8 +640,9 @@ doc). It has its own listener and does not alter any other service.
   with a logged warning in a lab). **v1 has no auth on the UI itself** - this is
   acceptable only on a trusted internal lab network. **TODO: front it with auth
   (the repo's IdP or a reverse proxy) before any non-lab use.**
-- **Phase 2 (out of v1 scope).** History/collector (time series), a `--dashboard`
-  bootstrap module + inclusion in `--all`, and UI authentication.
+- **Phase 2 (out of v1 scope).** History/collector (time series) and UI
+  authentication. (The `--dashboard` bootstrap module and `--all` inclusion have
+  landed.)
 
 ## Module Reference
 
@@ -659,7 +662,8 @@ All flags are passed to `sudo bash bootstrap/provider-box.sh <flag>`. "Depends o
 | `--s3` | SeaweedFS S3-compatible storage | none | `S3_DATA_DIR`; runtime under `WORKDIR/s3` | `S3_PORT`/tcp | none (credentials come from env) | removes runtime dir; preserves `S3_DATA_DIR` |
 | `--sftp` | SFTPGo file transfer | `--ca` | `SFTP_DATA_DIR`, `SFTP_HOME_DIR`, `SFTP_CERT_DIR`; runtime under `WORKDIR/sftpgo` | `SFTP_PORT`/tcp, `SFTP_ADMIN_PORT`/tcp | none (credentials come from env) | removes runtime dir; preserves data, home, and certs |
 | `--dns-sync` | NetBox-to-Technitium reconcile loop | `--ca`, `--technitium`, `--netbox` | `DNS_SYNC_DIR`, `DNS_SYNC_SECRETS_DIR`; runtime under `WORKDIR/dns-sync` | none (host networking, outbound only) | none (consumes tokens created by `--netbox` and `--technitium`) | removes runtime dir; preserves `DNS_SYNC_SECRETS_DIR` |
-| `--all` | Deploy everything except dns-sync | n/a | see individual modules | see individual modules | see individual modules | `--all --remove` removes SFTPGo, S3, NetBox, Authentik, Keycloak, depot, and step-ca only |
+| `--dashboard` | Read-only "current state" view of the services | `--ca` (reads `--netbox`, `--technitium`, `--dns-sync`, Docker when present) | `DASHBOARD_CERT_DIR`, `DASHBOARD_SECRETS_DIR`; runs the compose under `services/dashboard` | `DASHBOARD_ADDR` port (host networking) | none (issues its own leaf cert; scoped read-only tokens are operator-placed and optional) | brings the container down; preserves `DASHBOARD_CERT_DIR` and `DASHBOARD_SECRETS_DIR` |
+| `--all` | Deploy everything except dns-sync (dashboard included, last) | n/a | see individual modules | see individual modules | see individual modules | `--all --remove` removes the dashboard, SFTPGo, S3, NetBox, Authentik, Keycloak, depot, and step-ca only |
 
 Notes:
 
@@ -787,7 +791,7 @@ config/
 
 services/
   dns-sync/       Go source for the dns-sync and dns-seed binaries (image built locally by --dns-sync)
-  dashboard/      Go source for the standalone read-only dashboard (image + compose here; run manually, not a bootstrap module)
+  dashboard/      Go source for the read-only dashboard (image + compose + scripts here; deployed by --dashboard or run standalone)
 
 templates/
   unbound.conf.tpl

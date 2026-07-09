@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ## 2026-07-09
 
+### Features
+- Promote the dashboard to a first-class bootstrap module: `bootstrap/dashboard.sh` with the `--dashboard` flag (and `--dashboard --remove`), following the standard five-step flow (validate `DASHBOARD_*`/CA vars, create the cert and secrets dirs owned by uid 1000, issue the cert, start the stack, verify HTTPS). Cert issuance and startup reuse the service's own `scripts/issue-dashboard-cert.sh` and `scripts/run.sh` rather than duplicating them; the standalone `run.sh` path is unchanged.
+- Publish `DASHBOARD_FQDN` through `provider_box_builtin_fqdns`, so both DNS backends resolve `dashboard.<domain>` to the host IP (unbound renders it directly; technitium via `dns-sync` on its next pass). This makes the dashboard reachable by name.
+- Issue the dashboard cert as an explicit full chain (leaf + step-ca intermediate) so the served certificate validates against the step-ca root on its own; `issue-dashboard-cert.sh` now appends the intermediate if `step ca certificate` returned a leaf-only file.
+- Include `--dashboard` in `--all` (last, after the services it reads) and in `--all --remove` (first). Its scoped upstream tokens are optional - the NetBox/Technitium panels degrade to "not configured" - so `--all` stays coherent when they are unset. Add a `--dashboard` row to the module reference and update the env example, dashboard README (both the module and the still-supported standalone path), and IMPROVEMENTS.md #7.
+
 ### Fixes
 - Prevent unset variable-sourced bind-mount paths from corrupting data. When a variable used as a Docker bind-mount source is empty at compose time, `${VAR}/certs/root_ca.crt` collapses to `/certs/root_ca.crt` and Docker auto-creates the missing source as a DIRECTORY - which once turned step-ca's `root_ca.crt` into a directory and destroyed a running trust root ("file is a directory", init loop). Two guards now cover every variable-sourced mount:
   - Defense in depth in every compose template and the standalone `services/dashboard/docker-compose.yml`: each mount whose source begins with a variable now uses compose's mandatory-variable syntax `${VAR:?VAR must be set (empty would create a blank bind-mount source)}`. `envsubst` passes the guard through rendering unchanged, so an empty value aborts `docker compose` with a named error instead of mounting a blank path (32 mounts across 10 files).

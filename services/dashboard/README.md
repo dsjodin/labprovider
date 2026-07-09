@@ -1,10 +1,18 @@
 # Provider Box Dashboard
 
-A standalone, **read-only** "current state" view of the Provider Box services.
-It queries each service's API on request and renders the result. There is no
-persistent store, no history, and no writes to any upstream. It is **not** wired
-into `bootstrap/provider-box.sh` or `--all`; run it manually (phase 2 will add a
-`--dashboard` module).
+A **read-only** "current state" view of the Provider Box services. It queries
+each service's API on request and renders the result. There is no persistent
+store, no history, and no writes to any upstream.
+
+Two supported ways to run it:
+
+- **Bootstrap module (recommended):** `sudo bash bootstrap/provider-box.sh
+  --dashboard`. Also deployed by `--all` (last). This issues the cert, brings up
+  the stack, verifies HTTPS, and publishes `DASHBOARD_FQDN` via DNS. See
+  "Bootstrap module" below.
+- **Standalone / manual:** `services/dashboard/scripts/run.sh`, unchanged, for
+  running the service on its own without the bootstrap flow. See "Running it
+  manually" below.
 
 This service absorbs the intent of the former design-stage `services/stepca-api`
 (the "list issued certificates" panel); that directory has been removed and its
@@ -56,7 +64,49 @@ page or fails the request.
   authentication** (e.g. the Authentik/Keycloak already in this repo, or a
   reverse proxy with auth). Until then, do not expose it beyond the lab.
 
+## Bootstrap module
+
+`bootstrap/dashboard.sh` (flag `--dashboard`) wires this service into
+`provider-box.sh`. It does not rewrite the service - cert issuance and startup
+reuse `scripts/issue-dashboard-cert.sh` and `scripts/run.sh`, the same code the
+manual path uses. The module follows the standard five-step flow:
+
+1. **Validate** the `DASHBOARD_*` variables and the CA variables (fail fast on
+   an empty or malformed value).
+2. **Create** `DASHBOARD_CERT_DIR` and `DASHBOARD_SECRETS_DIR` owned by uid 1000
+   before anything writes to them.
+3. **Issue** the TLS cert from step-ca as a full chain (leaf + intermediate) via
+   `scripts/issue-dashboard-cert.sh`.
+4. **Start** the compose stack via `scripts/run.sh` (resolves the host docker
+   gid, `--env-file provider-box.env`, `up -d --build`).
+5. **Verify** `https://${DASHBOARD_FQDN}:${port}/healthz` returns 200 over the
+   step-ca chain (bounded poll, fail fast).
+
+```sh
+sudo bash bootstrap/provider-box.sh --ca
+sudo bash bootstrap/provider-box.sh --technitium   # or --unbound
+sudo bash bootstrap/provider-box.sh --netbox
+sudo bash bootstrap/provider-box.sh --dns-sync      # technitium backend
+sudo bash bootstrap/provider-box.sh --dashboard
+sudo bash bootstrap/provider-box.sh --dashboard --remove
+```
+
+**DNS:** `--dashboard` (via `provider_box_builtin_fqdns`) makes both DNS backends
+publish `DASHBOARD_FQDN -> HOST_IP`. With the unbound backend the record is
+rendered directly; with the technitium backend `dns-sync` synthesizes it on its
+next pass, so `dashboard.<domain>` resolves by name after `--dns-sync`.
+
+The scoped read-only tokens (below) are **optional** for the module - if absent,
+the NetBox and Technitium panels render "not configured", so `--dashboard` and
+`--all` stay green without them.
+
+`--dashboard --remove` brings the container down and preserves the cert and
+secrets directories, matching the other modules.
+
 ## Running it manually
+
+The standalone path (`scripts/run.sh`) is unchanged and still supported for
+running the service without the bootstrap flow.
 
 Prerequisites: `--ca` deployed (for the step-ca DB and root cert), and the
 services you want panels for (`--technitium`, `--netbox`, `--dns-sync`).
@@ -159,10 +209,11 @@ warning - fine for local development, not for the lab network.
 
 - **History / collector.** v1 fetches on page load only; there is no background
   polling, time series, or store.
-- **Bootstrap integration.** A `--dashboard` module for `provider-box.sh`
-  (cert issuance, token provisioning, `--remove`), and inclusion in `--all`.
 - **UI authentication.** Front the dashboard with the repo's IdP or a
   reverse-proxy auth layer before any non-lab exposure.
+
+(Bootstrap integration - the `--dashboard` module and `--all` inclusion - has
+landed; see "Bootstrap module" above.)
 
 ## Development
 

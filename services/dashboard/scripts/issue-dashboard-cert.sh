@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Issue the dashboard's TLS leaf certificate from step-ca, mirroring the
-# technitium module's cert-issuance docker run. Writes dashboard.crt (leaf +
-# chain, as `step ca certificate` bundles it) and dashboard.key into
-# DASHBOARD_CERT_DIR, owned by uid 1000 so the compose service can read them.
+# Issue the dashboard's TLS certificate from step-ca, mirroring the technitium
+# module's cert-issuance docker run. Writes dashboard.crt as a FULL chain (leaf
+# + step-ca intermediate) and dashboard.key into DASHBOARD_CERT_DIR, owned by
+# uid 1000 so the compose service can read them. The full chain is enforced
+# explicitly below so the served cert validates against the step-ca root.
 #
 # Usage: services/dashboard/scripts/issue-dashboard-cert.sh [ENV_FILE]
 # ENV_FILE defaults to config/provider-box.env at the repo root.
@@ -61,6 +62,20 @@ docker run --rm --network host \
     --ca-url "https://${CA_FQDN}:${CA_PORT}" \
     --root /home/step/certs/root_ca.crt || \
     fail "Failed to issue a dashboard certificate from step-ca."
+
+# Guarantee a FULL chain (leaf + intermediate). `step ca certificate` bundles
+# the intermediate by default, but the served cert must validate against the
+# step-ca root on its own, so make it explicit and defensive: if only the leaf
+# is present, append the step-ca intermediate. A leaf-only cert bit us during a
+# CA rebuild.
+cert_count="$(grep -c 'BEGIN CERTIFICATE' "${DASHBOARD_CERT_DIR}/dashboard.crt" || true)"
+if [[ "${cert_count}" -lt 2 ]]; then
+  intermediate="${CA_DATA_DIR}/certs/intermediate_ca.crt"
+  [[ -f "${intermediate}" ]] || \
+    fail "dashboard.crt has no intermediate and ${intermediate} is missing; cannot build a full chain. Run --ca first."
+  cat "${intermediate}" >> "${DASHBOARD_CERT_DIR}/dashboard.crt"
+  echo "Appended the step-ca intermediate to dashboard.crt (leaf + intermediate)."
+fi
 
 chown -R 1000:1000 "${DASHBOARD_CERT_DIR}"
 chmod 0600 "${DASHBOARD_CERT_DIR}/dashboard.key"

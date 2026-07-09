@@ -35,12 +35,15 @@ Usage:
   sudo bash bootstrap/provider-box.sh --technitium --remove
   sudo bash bootstrap/provider-box.sh --dns-sync
   sudo bash bootstrap/provider-box.sh --dns-sync --remove
+  sudo bash bootstrap/provider-box.sh --dashboard
+  sudo bash bootstrap/provider-box.sh --dashboard --remove
   sudo bash bootstrap/provider-box.sh --all
   sudo bash bootstrap/provider-box.sh --all --remove
 
 Note: --all deploys the DNS backend selected by DNS_BACKEND (unbound first,
-or technitium after --ca). --dns-sync is NOT included in --all and must be
-deployed explicitly after --all.
+or technitium after --ca) and the read-only dashboard last. --dns-sync is NOT
+included in --all and must be deployed explicitly after --all; with the
+technitium backend, run it after --all so the dashboard FQDN resolves by name.
 USAGE
 }
 
@@ -244,7 +247,7 @@ local-data-ptr: \"${ip} ${fqdn}\"
 # record synthesis. Prints one FQDN per line; unset services are skipped.
 provider_box_builtin_fqdns() {
   local var
-  for var in PROVIDER_BOX_FQDN DNS_FQDN CA_FQDN DEPOT_FQDN KEYCLOAK_FQDN AUTHENTIK_FQDN NETBOX_FQDN S3_FQDN SFTP_FQDN SYSLOG_FQDN; do
+  for var in PROVIDER_BOX_FQDN DNS_FQDN CA_FQDN DEPOT_FQDN KEYCLOAK_FQDN AUTHENTIK_FQDN NETBOX_FQDN S3_FQDN SFTP_FQDN SYSLOG_FQDN DASHBOARD_FQDN; do
     [[ -n "${!var:-}" ]] && printf '%s\n' "${!var}"
   done
   return 0
@@ -595,6 +598,10 @@ require_module_file "${BOOTSTRAP_DIR}/dns-sync.sh"
 # shellcheck disable=SC1090
 source "${BOOTSTRAP_DIR}/dns-sync.sh"
 
+require_module_file "${BOOTSTRAP_DIR}/dashboard.sh"
+# shellcheck disable=SC1090
+source "${BOOTSTRAP_DIR}/dashboard.sh"
+
 require_root
 
 TARGET_SERVICE=""
@@ -608,7 +615,7 @@ for arg in "$@"; do
       [[ "${REMOVE_MODE}" -eq 0 ]] || fail "Duplicate --remove flag"
       REMOVE_MODE=1
       ;;
-    --unbound|--ntp|--rsyslog|--ca|--depot|--keycloak|--authentik|--netbox|--s3|--sftp|--technitium|--dns-sync|--all)
+    --unbound|--ntp|--rsyslog|--ca|--depot|--keycloak|--authentik|--netbox|--s3|--sftp|--technitium|--dns-sync|--dashboard|--all)
       [[ -z "${TARGET_SERVICE}" ]] || fail "Specify exactly one service flag"
       TARGET_SERVICE="$arg"
       ;;
@@ -751,10 +758,21 @@ case "${TARGET_SERVICE}" in
       do_dns_sync
     fi
     ;;
+  --dashboard)
+    require_env_file
+    load_env
+    if [[ "${REMOVE_MODE}" -eq 1 ]]; then
+      remove_dashboard
+    else
+      require_common_vars
+      do_dashboard
+    fi
+    ;;
   --all)
     require_env_file
     load_env
     if [[ "${REMOVE_MODE}" -eq 1 ]]; then
+      remove_dashboard
       remove_sftp
       remove_s3
       remove_netbox
@@ -783,6 +801,13 @@ case "${TARGET_SERVICE}" in
       do_netbox
       do_s3
       do_sftp
+      # The dashboard is a read-only view of the services above, so it runs
+      # last. Its scoped upstream tokens are optional (panels degrade to
+      # "not configured"), so --all stays coherent when they are unset. DNS
+      # resolution of DASHBOARD_FQDN comes from the selected backend: unbound
+      # renders it into the DNS block here; with technitium it lands after the
+      # post---all --dns-sync run.
+      do_dashboard
     fi
     ;;
 esac
