@@ -63,48 +63,80 @@ services you want panels for (`--technitium`, `--netbox`, `--dns-sync`).
 
 1. **Add the dashboard variables to your config.** Copy the `DASHBOARD_*` block
    from `config/provider-box.env.example` into your `config/provider-box.env`
-   and adjust. Set `DASHBOARD_DOCKER_GID` to the host docker gid
-   (`getent group docker | cut -d: -f3`).
+   and adjust. (`scripts/run.sh` resolves `DASHBOARD_DOCKER_GID` from the host
+   docker group automatically, so you can leave the example default.)
 
-2. **Issue the dashboard's TLS cert** from step-ca (same pattern as the
-   technitium module), writing `dashboard.crt` / `dashboard.key` into
-   `DASHBOARD_CERT_DIR`:
+2. **Issue the dashboard's TLS cert** from step-ca. This mirrors the technitium
+   module's cert-issuance docker run and writes `dashboard.crt` (leaf + chain)
+   and `dashboard.key` into `DASHBOARD_CERT_DIR`, owned by uid 1000:
 
    ```sh
-   source config/provider-box.env
-   install -d -m 0755 "${DASHBOARD_CERT_DIR}"
-   docker run --rm --network host \
-     --add-host "${CA_FQDN}:127.0.0.1" \
-     -v "${CA_DATA_DIR}:/home/step" \
-     -v "${DASHBOARD_CERT_DIR}:/certs" \
-     "${CA_IMAGE}" \
-     step ca certificate "${DASHBOARD_FQDN}" /certs/dashboard.crt /certs/dashboard.key \
-       --san "${DASHBOARD_FQDN}" \
-       --not-after "${SERVICE_CERT_DURATION}" \
-       --issuer "${CA_PROVISIONER_NAME}" \
-       --provisioner-password-file "/home/step/${CA_PASSWORD_FILE#${CA_DATA_DIR}/}" \
-       --ca-url "https://${CA_FQDN}:${CA_PORT}" \
-       --root /home/step/certs/root_ca.crt
-   chown -R 1000:1000 "${DASHBOARD_CERT_DIR}"
+   services/dashboard/scripts/issue-dashboard-cert.sh
    ```
 
+   (Pass a path as the first argument to use a non-default env file.) HTTPS is
+   the default. If the cert is missing or unreadable at start, the server logs a
+   WARNING and falls back to plaintext HTTP rather than crash-looping - fine for
+   a lab, but issue the cert for real use.
+
 3. **Provide the scoped read-only tokens** in `DASHBOARD_SECRETS_DIR`
-   (mode 0600, owner uid 1000):
+   (mode 0600, owner uid 1000). See "Creating the read-only tokens" below.
    - `technitium.token` - a scoped Technitium API token.
-   - `netbox-readonly.token` - a dedicated NetBox read-only token (create it in
-     NetBox under a non-admin user with view-only IPAM permissions).
+   - `netbox-readonly.token` - a dedicated NetBox read-only token.
 
 4. **Start it:**
 
    ```sh
-   cd services/dashboard
-   docker compose --env-file ../../config/provider-box.env up -d --build
+   services/dashboard/scripts/run.sh
    ```
 
-   Then browse `https://${DASHBOARD_FQDN}:8445/` (the `DASHBOARD_ADDR` port).
+   This runs the documented compose command
+   (`docker compose --env-file ../../config/provider-box.env up -d --build`) with
+   `DASHBOARD_DOCKER_GID` resolved from the host docker group. Then browse
+   `https://${DASHBOARD_FQDN}:8445/` (the `DASHBOARD_ADDR` port). To stop it:
+   `services/dashboard/scripts/run.sh -- down`.
 
 Any panel whose upstream URL/token/path is unset simply renders "not
 configured", so you can run with a subset of sources.
+
+### Creating the read-only tokens
+
+Both panels are optional; without a token they render "not configured". Create
+**dedicated, read-only** credentials - never reuse the dns-sync or bootstrap
+admin tokens.
+
+**NetBox (`netbox-readonly.token`).** In the NetBox UI as an admin:
+
+1. Create a group (e.g. `dashboard-readonly`) and add an object permission that
+   grants only the **view** action on `IPAM > Prefix` and `IPAM > IP address`
+   (no add/change/delete). Assign the group that permission.
+2. Create a service user (e.g. `dashboard`), add it to that group, and leave it
+   without staff/superuser flags.
+3. Under that user, create an API token with **Write enabled unchecked**
+   (read-only). On NetBox 4.6 the token is the composite `nbt_<key>.<token>` -
+   copy the full value.
+4. Write it to the secret file:
+
+   ```sh
+   install -d -m 0700 "${DASHBOARD_SECRETS_DIR}"
+   printf '%s' 'nbt_...' > "${DASHBOARD_SECRETS_DIR}/netbox-readonly.token"
+   chmod 0600 "${DASHBOARD_SECRETS_DIR}/netbox-readonly.token"
+   chown 1000:1000 "${DASHBOARD_SECRETS_DIR}/netbox-readonly.token"
+   ```
+
+The dashboard only ever GETs `ipam/prefixes` and `ipam/ip-addresses`, so a
+view-only token on those two models is sufficient.
+
+**Technitium (`technitium.token`).** Technitium's API has no per-scope tokens,
+so create a **non-admin** user and use its token (the dashboard only calls
+`zones/list`, `zones/records/get`, and `settings/get`):
+
+1. In the Technitium console, add a user (e.g. `dashboard`) that is **not** in
+   the `administrators` group.
+2. Create a permanent API token for it (console, or
+   `/api/user/createToken?user=<u>&pass=<p>&tokenName=dashboard`).
+3. Write it to `${DASHBOARD_SECRETS_DIR}/technitium.token` with the same
+   `0600` / uid-1000 ownership as above.
 
 ## Configuration
 

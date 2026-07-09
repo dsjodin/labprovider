@@ -625,9 +625,11 @@ doc). It has its own listener and does not alter any other service.
      JSON for `level>=error`.
 - **How to run it.** Add the `DASHBOARD_*` block from
   `config/provider-box.env.example` to your `config/provider-box.env`, issue its
-  TLS cert from step-ca and place the scoped read-only tokens (steps in
-  `services/dashboard/README.md`), then:
-  `cd services/dashboard && docker compose --env-file ../../config/provider-box.env up -d --build`.
+  TLS cert (`services/dashboard/scripts/issue-dashboard-cert.sh`) and place the
+  scoped read-only tokens (steps in `services/dashboard/README.md`), then start
+  it with `services/dashboard/scripts/run.sh` (wraps the documented compose
+  command and resolves the host docker gid). HTTPS is default; a missing cert
+  logs a warning and falls back to HTTP rather than failing to start.
 - **Security posture.** Read-only everywhere (no upstream write path). It uses a
   **dedicated minimum-read-scope NetBox token** (never the dns-sync/bootstrap
   admin token), a scoped Technitium token, the step-ca DB read-only via snapshot,

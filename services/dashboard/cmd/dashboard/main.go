@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -84,21 +85,41 @@ func main() {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
-	tls := cfg.TLSCert != "" && cfg.TLSKey != ""
+	// Decide HTTP vs HTTPS before binding. A configured-but-unreadable or
+	// malformed cert/key must not crash-loop the server: warn and fall back to
+	// HTTP, and reflect the mode actually used in the startup log.
+	useTLS := resolveTLS(cfg.TLSCert, cfg.TLSKey, logger)
+
 	logger.Info("starting dashboard",
-		"addr", cfg.Addr, "fqdn", cfg.FQDN, "tls", tls,
+		"addr", cfg.Addr, "fqdn", cfg.FQDN, "tls", useTLS,
 		"certs", opt.Certs != nil, "dns", opt.DNS != nil,
 		"ipam", opt.IPAM != nil, "docker", opt.Docker != nil,
 	)
 
-	if tls {
+	if useTLS {
 		err = httpSrv.ListenAndServeTLS(cfg.TLSCert, cfg.TLSKey)
 	} else {
-		logger.Warn("no TLS cert configured (DASHBOARD_TLS_CERT/DASHBOARD_TLS_KEY); serving plaintext HTTP - do not use outside a trusted lab")
 		err = httpSrv.ListenAndServe()
 	}
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("http server exited", "err", err)
 		os.Exit(1)
 	}
+}
+
+// resolveTLS reports whether the server should serve HTTPS. It returns true only
+// when both paths are set and load as a valid keypair; otherwise it logs a
+// warning and returns false so the caller serves plaintext HTTP instead of
+// crash-looping on a missing or malformed cert.
+func resolveTLS(certPath, keyPath string, logger *slog.Logger) bool {
+	if certPath == "" || keyPath == "" {
+		logger.Warn("no TLS cert configured (DASHBOARD_TLS_CERT/DASHBOARD_TLS_KEY); serving plaintext HTTP - do not use outside a trusted lab")
+		return false
+	}
+	if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
+		logger.Warn("TLS cert/key unreadable; falling back to plaintext HTTP - do not use outside a trusted lab",
+			"cert", certPath, "key", keyPath, "err", err)
+		return false
+	}
+	return true
 }
