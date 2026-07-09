@@ -10,6 +10,13 @@
 // directory under SnapshotRoot, opens the copy read-only, reads, then discards
 // it. See STEPCA_STORAGE.md.
 //
+// Badger major version is load-bearing: step-ca 0.30.2 (smallstep CLI 0.30.2)
+// writes a BadgerDB manifest v7, which is the badger/v3 format. This package
+// therefore pins github.com/dgraph-io/badger/v3, NOT v4 (manifest v8). A v4
+// engine opening a v7 DB refuses or migrates it; since we only ever open a
+// read-only snapshot copy, keep the import at v3 and matched to step-ca's
+// engine when bumping either. See IMPROVEMENTS.md and badger_fixture_test.go.
+//
 // Verified against step-ca v0.30.2 + smallstep/nosql v0.8.0:
 //   - bucket "x509_certs"         keyed by decimal serial, value = raw DER cert
 //   - bucket "x509_certs_data"    keyed by decimal serial, value = JSON CertificateData
@@ -36,7 +43,7 @@ import (
 	"strings"
 	"time"
 
-	badger "github.com/dgraph-io/badger/v4"
+	badger "github.com/dgraph-io/badger/v3"
 )
 
 // Cert is one issued certificate as read from step-ca. Revoked is set when the

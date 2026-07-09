@@ -255,3 +255,31 @@ No dead variables were found in `config/provider-box.env.example`: every
 active variable in the example is consumed by at least one module or
 template, and every operator-supplied variable required by the modules
 exists in the example.
+
+## 16. dashboard cert reader is coupled to step-ca's BadgerDB major version
+
+- What: `services/dashboard/internal/certs` reads step-ca's embedded
+  BadgerDB directly and therefore must import the SAME badger major
+  version step-ca writes with. step-ca 0.30.2 (smallstep CLI 0.30.2)
+  writes a manifest v7 database, which is the `badger/v3` format, so the
+  dashboard pins `github.com/dgraph-io/badger/v3` (v3.2103.5). It was
+  originally (mistakenly) on `badger/v4` (manifest v8): a v4 engine
+  opening a v7 DB refuses or migrates it, and although the reader only
+  ever opens a read-only snapshot copy (so a migration could never touch
+  the live DB), on a real lab DB the open would fail and blank the
+  Certificates panel.
+- Where: `services/dashboard/internal/certs/certs.go` (import + the
+  `withSnapshot` open, which keeps `WithReadOnly(true)`),
+  `services/dashboard/go.mod`.
+- Why it matters: This is the version-fragile coupling `STEPCA_STORAGE.md`
+  warns about, now with a second axis (the badger major, not just the
+  bucket/key layout). A future step-ca bump that changes its badger major
+  requires bumping this import in lockstep - and re-running
+  `badger_fixture_test.go`, which writes a v3-format fixture and reads it
+  back precisely to catch this drift.
+- Suggested fix: When bumping the pinned `CA_IMAGE`, check the step-ca
+  release's badger/manifest version and realign this import; keep the
+  read-only-open invariant regardless (a matching engine still must not
+  be allowed to migrate the snapshot).
+- Blast radius: Small and isolated to one package; caught at build time
+  (import) and by the fixture test (format).
