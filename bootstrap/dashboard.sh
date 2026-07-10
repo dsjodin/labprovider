@@ -14,7 +14,8 @@ require_dashboard_vars() {
   for var in REPO_ROOT DASHBOARD_FQDN DASHBOARD_ADDR DASHBOARD_IMAGE \
              DASHBOARD_CERT_DIR DASHBOARD_SECRETS_DIR DASHBOARD_CONTAINER_FILTERS \
              DASHBOARD_LOG_TAIL DASHBOARD_UPSTREAM_TIMEOUT DASHBOARD_CERT_WARN_DAYS \
-             CA_DATA_DIR; do
+             CA_DATA_DIR CA_POSTGRES_DB CA_POSTGRES_PORT CA_POSTGRES_RO_USER \
+             CA_POSTGRES_RO_PASSWORD; do
     [[ -n "${!var:-}" ]] || fail "Missing required variable: $var"
   done
 
@@ -22,6 +23,8 @@ require_dashboard_vars() {
   validate_var_path "${DASHBOARD_CERT_DIR}"
   validate_var_path "${DASHBOARD_SECRETS_DIR}"
   validate_var_path "${CA_DATA_DIR}"
+  validate_var_port "${CA_POSTGRES_PORT}"
+  validate_var_not_placeholder "${CA_POSTGRES_RO_PASSWORD}"
   [[ "${DASHBOARD_IMAGE}" == *:* ]] || fail "DASHBOARD_IMAGE must include an explicit image tag"
   [[ "${DASHBOARD_IMAGE}" != *:latest ]] || fail "DASHBOARD_IMAGE must not use the latest tag"
 
@@ -90,6 +93,17 @@ bootstrap_dashboard_layout() {
   chown 1000:1000 "${DASHBOARD_CERT_DIR}" "${DASHBOARD_SECRETS_DIR}"
 }
 
+# Materialize the step-ca read-only postgres password the cert panel reads. The
+# value is the RO role password created by --ca; the dashboard only ever gets
+# SELECT on the cert tables through it. Written 0600/uid-1000 so the read-only
+# secrets bind mount is readable by the container user.
+provision_dashboard_stepca_ro_password() {
+  local pw_file="${DASHBOARD_SECRETS_DIR}/stepca-ro.pgpassword"
+  install -m 0600 /dev/null "${pw_file}"
+  printf '%s' "${CA_POSTGRES_RO_PASSWORD}" > "${pw_file}"
+  chown 1000:1000 "${pw_file}"
+}
+
 # Reuse the service's own issuance script (fullchain leaf + intermediate,
 # --add-host ca pin, uid-1000 ownership) rather than duplicating the docker run.
 issue_dashboard_certificate() {
@@ -131,6 +145,7 @@ do_dashboard() {
   docker_pkgs
   require_ca_ready_for_dashboard
   bootstrap_dashboard_layout
+  provision_dashboard_stepca_ro_password
   issue_dashboard_certificate
   start_dashboard_stack
   ufw allow "${DASHBOARD_PORT}/tcp" || true

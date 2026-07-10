@@ -261,6 +261,14 @@ exists in the example.
 
 ## 16. dashboard cert reader is coupled to step-ca's BadgerDB major version
 
+- RESOLVED (Phase 2, step-ca postgres migration). step-ca now runs on a
+  dedicated PostgreSQL backend and the dashboard reads that via
+  `github.com/jackc/pgx/v5`. The badger dependency, the `badger/v3` pin, the
+  snapshot-copy code, and `badger_fixture_test.go` are removed, so the
+  badger-major coupling described below no longer exists. The reader still
+  couples to step-ca's stored value SHAPES (DER, and the two JSON blobs), which
+  is the residual version-fragility `STEPCA_STORAGE.md` documents - but there is
+  no longer an engine/manifest axis. Original entry retained below for history.
 - What: `services/dashboard/internal/certs` reads step-ca's embedded
   BadgerDB directly and therefore must import the SAME badger major
   version step-ca writes with. step-ca 0.30.2 (smallstep CLI 0.30.2)
@@ -286,3 +294,39 @@ exists in the example.
   be allowed to migrate the snapshot).
 - Blast radius: Small and isolated to one package; caught at build time
   (import) and by the fixture test (format).
+
+---
+
+## 17. step-ca on PostgreSQL: decisions and pins (Phase 2)
+
+- What: step-ca was moved from BadgerDB to a DEDICATED postgres backend
+  (`stepca-postgres`, `CA_POSTGRES_*`), CRL was enabled, and the dashboard cert
+  panel was repointed at postgres through a `SELECT`-only role.
+- Pins recorded: `CA_POSTGRES_IMAGE=docker.io/library/postgres:17-alpine`
+  (matches `NETBOX_POSTGRES_IMAGE`); dashboard adds
+  `github.com/jackc/pgx/v5` and drops `github.com/dgraph-io/badger/v3`.
+- Opaque-store fact (load-bearing): on postgres, step-ca still stores opaque
+  key-value data - one table per bucket, `nkey`/`nvalue BYTEA`. The tables
+  (`x509_certs`, `x509_certs_data`, `revoked_x509_certs`) exist and are
+  `SELECT`-able, but cert attributes live inside the `BYTEA` blobs, so the
+  reader decodes DER/JSON; SQL cannot filter or join on cert fields. This is
+  why the dashboard still owns a decode path rather than issuing relational
+  queries.
+- stepca-web REJECTED (do not adopt). The Phase 1 assessment evaluated
+  `damhau/stepca-web` as the admin console and rejected it: (1) blast radius -
+  it demands the postgres creds, the step-ca remote admin API, a cert-issuing
+  JWK key, `ca.json` write, and systemd control, so a compromise is a full CA
+  compromise; (2) maintenance risk - single-maintainer, low-adoption, no
+  release discipline, sitting in the trust-root path; (3) deployment mismatch -
+  it assumes a systemd host, while our step-ca is a container. The chosen
+  alternative is the existing read-only dashboard panel: no write path, no
+  remote admin API, no JWK key - only `SELECT` on the cert tables. If a
+  write/revoke UI is ever wanted, that is a separate, scoped decision that would
+  require enabling the remote admin API and is re-evaluated then.
+- On-host confirmation still needed (a sandbox cannot cover these): the real
+  reissue chain against the new root; that the pinned image's pgx honors
+  `PGPASSFILE` at runtime; the RO-role grant races nothing (step-ca creates the
+  cert tables at startup before `--ca` grants on them); PG TLS posture
+  (`sslmode=disable` is loopback-only today); and the CRL endpoint path.
+- Blast radius: CA module (`bootstrap/ca.sh`, the CA compose template) plus the
+  dashboard package and its compose; a CA rebuild + reissue of all leaves.

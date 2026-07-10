@@ -155,7 +155,7 @@ func (s *Server) panelCtx(ctx context.Context) (context.Context, context.CancelF
 func (s *Server) collectCerts(ctx context.Context, now time.Time) CertsPanel {
 	p := CertsPanel{}
 	if s.opt.Certs == nil {
-		p.Status = disabled("DASHBOARD_STEPCA_DB not set")
+		p.Status = disabled("DASHBOARD_STEPCA_DSN not set")
 		return p
 	}
 	pctx, cancel := s.panelCtx(ctx)

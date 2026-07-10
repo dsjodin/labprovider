@@ -36,8 +36,13 @@ func main() {
 
 	// Each provider is optional; a nil provider renders its panel as
 	// "not configured" rather than failing the page.
-	if cfg.StepCADBPath != "" {
-		opt.Certs = &certs.Reader{Path: cfg.StepCADBPath, SnapshotRoot: cfg.StepCASnapshot}
+	if cfg.StepCADSN != "" {
+		r, err := certs.NewReader(cfg.StepCADSN, cfg.StepCAPassword)
+		if err != nil {
+			logger.Error("init stepca certs reader", "err", err)
+		} else {
+			opt.Certs = r
+		}
 	}
 	if cfg.TechnitiumURL != "" && cfg.TechnitiumToken != "" {
 		c, err := dns.New(cfg.TechnitiumURL, cfg.TechnitiumToken, cfg.TechnitiumCABundle, cfg.UpstreamTimeout)

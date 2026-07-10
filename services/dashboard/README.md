@@ -16,7 +16,9 @@ Two supported ways to run it:
 
 This service absorbs the intent of the former design-stage `services/stepca-api`
 (the "list issued certificates" panel); that directory has been removed and its
-reusable step-ca BadgerDB reader migrated here as `internal/certs`.
+reusable step-ca reader lives here as `internal/certs`, now reading step-ca's
+PostgreSQL backend (the BadgerDB reader was retired when step-ca moved to
+postgres).
 
 ## What it shows
 
@@ -26,8 +28,8 @@ page or fails the request.
 
 1. **Certificates (step-ca)** - active certs with subject/SANs, provisioner,
    notBefore/notAfter and days-to-expiry, flagged against a warn threshold.
-   Read directly from step-ca's BadgerDB via a per-read snapshot copy (the live
-   DB is never opened directly - see `STEPCA_STORAGE.md`).
+   Read from step-ca's dedicated PostgreSQL backend over `127.0.0.1` with a
+   `SELECT`-only role, decoding the opaque cert blobs (see `STEPCA_STORAGE.md`).
 2. **DNS (Technitium)** - zone list, managed record count per zone, the
    forwarder in use, and whether the TLS console/API (`:53443`) is reachable.
    Uses the same API shapes as `dns-sync` and the technitium module.
@@ -52,7 +54,8 @@ page or fails the request.
   - Technitium: a scoped API token (the API has no per-scope tokens, so create a
     non-admin user's token where possible; it is only ever used for
     `zones/list`, `zones/records/get`, and `settings/get`).
-  - step-ca: the DB is read via a read-only snapshot; there is no signing path.
+  - step-ca: the postgres backend is read through a `SELECT`-only role on the
+    cert tables; there is no signing path and no write path.
   - Docker socket is mounted `:ro`.
 - **Tokens come from files/env, never hardcoded, never logged.** The compose
   file mounts them from `DASHBOARD_SECRETS_DIR` read-only.
@@ -108,8 +111,9 @@ secrets directories, matching the other modules.
 The standalone path (`scripts/run.sh`) is unchanged and still supported for
 running the service without the bootstrap flow.
 
-Prerequisites: `--ca` deployed (for the step-ca DB and root cert), and the
-services you want panels for (`--technitium`, `--netbox`, `--dns-sync`).
+Prerequisites: `--ca` deployed (for step-ca's postgres, the read-only role, and
+the root cert), and the services you want panels for (`--technitium`,
+`--netbox`, `--dns-sync`).
 
 1. **Add the dashboard variables to your config.** Copy the `DASHBOARD_*` block
    from `config/provider-box.env.example` into your `config/provider-box.env`
@@ -196,7 +200,8 @@ reads them directly, so it can run outside Docker for development:
 
 ```sh
 DASHBOARD_ADDR=:8445 \
-DASHBOARD_STEPCA_DB=/opt/provider-box/step-ca/db \
+DASHBOARD_STEPCA_DSN='postgresql://dashboard_ro@127.0.0.1:5432/stepca?sslmode=disable' \
+DASHBOARD_STEPCA_PG_PASSWORD=... \
 DASHBOARD_TECHNITIUM_URL=https://dns.sddc.lab:53443 \
 DASHBOARD_TECHNITIUM_TOKEN=... \
 go run ./cmd/dashboard

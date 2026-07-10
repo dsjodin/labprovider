@@ -12,7 +12,7 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 COPY --from=build /tmp/passwd /etc/passwd
 COPY --from=build /tmp/group /etc/group
 COPY --from=build /out/dashboard /usr/local/bin/dashboard
-# Runs as uid 1000. The step-ca DB snapshot dir and the docker socket group
-# access are provided by the compose file's mounts and group mapping.
+# Runs as uid 1000. The step-ca postgres read-only credentials and the docker
+# socket group access are provided by the compose file's mounts and group mapping.
 USER 1000:1000
 CMD ["/usr/local/bin/dashboard"]

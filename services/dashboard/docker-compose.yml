@@ -25,10 +25,12 @@ services:
       DASHBOARD_FQDN: "${DASHBOARD_FQDN}"
       DASHBOARD_TLS_CERT: "/etc/dashboard/certs/dashboard.crt"
       DASHBOARD_TLS_KEY: "/etc/dashboard/certs/dashboard.key"
-      # Certificates panel: step-ca DB is mounted read-only and snapshotted into
-      # the writable tmpfs below; the live DB is never opened directly.
-      DASHBOARD_STEPCA_DB: "/home/step/db"
-      DASHBOARD_STEPCA_SNAPSHOT_DIR: "/snapshots"
+      # Certificates panel: read step-ca's dedicated postgres over the
+      # loopback-published port with a SELECT-only role. The password is a
+      # mounted file, not baked into the DSN. host networking (below) makes the
+      # 127.0.0.1 pin reach the CA-published port, same pattern as NetBox above.
+      DASHBOARD_STEPCA_DSN: "postgresql://${CA_POSTGRES_RO_USER}@127.0.0.1:${CA_POSTGRES_PORT}/${CA_POSTGRES_DB}?sslmode=disable"
+      DASHBOARD_STEPCA_PG_PASSWORD_FILE: "/run/dashboard/secrets/stepca-ro.pgpassword"
       DASHBOARD_CERT_WARN_DAYS: "${DASHBOARD_CERT_WARN_DAYS}"
       # DNS panel (Technitium), read-only scoped token.
       DASHBOARD_TECHNITIUM_URL: "${DASHBOARD_TECHNITIUM_URL}"
@@ -43,10 +45,7 @@ services:
       DASHBOARD_CONTAINER_FILTERS: "${DASHBOARD_CONTAINER_FILTERS}"
       DASHBOARD_LOG_TAIL: "${DASHBOARD_LOG_TAIL}"
       DASHBOARD_UPSTREAM_TIMEOUT: "${DASHBOARD_UPSTREAM_TIMEOUT}"
-    tmpfs:
-      - /snapshots
     volumes:
-      - ${CA_DATA_DIR:?CA_DATA_DIR must be set (empty would create a blank bind-mount source)}/db:/home/step/db:ro
       - ${CA_DATA_DIR:?CA_DATA_DIR must be set (empty would create a blank bind-mount source)}/certs/root_ca.crt:/etc/dashboard/root_ca.crt:ro
       - ${DASHBOARD_CERT_DIR:?DASHBOARD_CERT_DIR must be set (empty would create a blank bind-mount source)}:/etc/dashboard/certs:ro
       - ${DASHBOARD_SECRETS_DIR:?DASHBOARD_SECRETS_DIR must be set (empty would create a blank bind-mount source)}:/run/dashboard/secrets:ro
