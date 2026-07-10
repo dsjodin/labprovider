@@ -444,7 +444,7 @@ netbox_api_auth_header() {
 # while NetBox still accepts it. Skipped with a notice when
 # DNS_SYNC_SECRETS_DIR is unset so --netbox stays deployable standalone.
 provision_dns_sync_netbox_token() {
-  local token_file stored code response key token composite ids id
+  local token_file stored code response key token composite
 
   if [[ -z "${DNS_SYNC_SECRETS_DIR:-}" ]]; then
     echo "NOTICE: DNS_SYNC_SECRETS_DIR is not set; skipping dns-sync NetBox token provisioning."
@@ -474,29 +474,8 @@ provision_dns_sync_netbox_token() {
   fi
 
   # Housekeeping: retire previous provider-box dns-sync tokens so redeploys
-  # do not accumulate live credentials. Best-effort: enumeration failures are
-  # reported and skipped, never fatal.
-  response="$(curl --silent --show-error \
-    --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
-    --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
-    -H "Accept: application/json" \
-    -H "Authorization: ${NETBOX_API_AUTH_HEADER}" \
-    "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/users/tokens/?description=provider-box%20dns-sync" || true)"
-  ids="$(printf '%s' "${response}" | tr -d '\n' | grep -o '"id":[0-9]*' | cut -d: -f2 || true)"
-  if [[ -n "${ids}" ]]; then
-    for id in ${ids}; do
-      code="$(curl --silent --show-error \
-        --output /dev/null \
-        --write-out '%{http_code}' \
-        --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
-        --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
-        -X DELETE \
-        -H "Authorization: ${NETBOX_API_AUTH_HEADER}" \
-        "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/users/tokens/${id}/" || true)"
-      [[ "${code}" == "204" ]] && echo "Deleted previous dns-sync NetBox token (id ${id})." || \
-        echo "NOTICE: could not delete previous dns-sync NetBox token id ${id} (HTTP ${code})."
-    done
-  fi
+  # do not accumulate live credentials.
+  netbox_retire_tokens_by_description "provider-box%20dns-sync" "dns-sync"
 
   response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"${NETBOX_SUPERUSER_NAME}\",\"password\":\"${NETBOX_SUPERUSER_PASSWORD}\",\"description\":\"provider-box dns-sync\"}")" || \
     fail "Failed to provision a dns-sync NetBox token."
@@ -522,6 +501,140 @@ provision_dns_sync_netbox_token() {
   chmod 0600 "${token_file}"
   chown 1000:1000 "${token_file}"
   echo "Provisioned a dns-sync NetBox token at: ${token_file}"
+}
+
+# Retire previous provider-box tokens matching a description so redeploys do not
+# accumulate live credentials. Best-effort: enumeration and delete failures are
+# reported and skipped, never fatal. $1 is the URL-encoded description filter;
+# $2 is a human label for the log lines.
+netbox_retire_tokens_by_description() {
+  local description="$1" label="$2" response ids id code
+  response="$(curl --silent --show-error \
+    --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+    --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+    -H "Accept: application/json" \
+    -H "Authorization: ${NETBOX_API_AUTH_HEADER}" \
+    "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/users/tokens/?description=${description}" || true)"
+  ids="$(printf '%s' "${response}" | tr -d '\n' | grep -o '"id":[0-9]*' | cut -d: -f2 || true)"
+  [[ -n "${ids}" ]] || return 0
+  for id in ${ids}; do
+    code="$(curl --silent --show-error \
+      --output /dev/null \
+      --write-out '%{http_code}' \
+      --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+      --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+      -X DELETE \
+      -H "Authorization: ${NETBOX_API_AUTH_HEADER}" \
+      "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/users/tokens/${id}/" || true)"
+    [[ "${code}" == "204" ]] && echo "Deleted previous ${label} NetBox token (id ${id})." || \
+      echo "NOTICE: could not delete previous ${label} NetBox token id ${id} (HTTP ${code})."
+  done
+}
+
+# Probe IPAM read access with a Bearer token and print the HTTP status. Used to
+# validate a stored/operator-placed token and to verify a freshly minted one:
+# 200 means the token can read the two IPAM models the dashboard panel needs.
+netbox_probe_ipam_read() {
+  local bearer="$1"
+  curl --silent --show-error \
+    --output /dev/null \
+    --write-out '%{http_code}' \
+    --cacert "${CA_DATA_DIR}/certs/root_ca.crt" \
+    --resolve "${NETBOX_FQDN}:${NETBOX_PORT}:127.0.0.1" \
+    -H "Accept: application/json" \
+    -H "Authorization: Bearer ${bearer}" \
+    "https://${NETBOX_FQDN}:${NETBOX_PORT}/api/ipam/prefixes/?limit=1" || true
+}
+
+# Auto-provision the dedicated read-only NetBox token the dashboard IPAM panel
+# consumes, mirroring provision_dns_sync_netbox_token (validity-probe
+# idempotency, producer-side, skip-if-not-configured). This is the minimum-read
+# path: a dashboard-readonly group with a view-only object permission on IPAM
+# Prefix and IP address, a non-privileged service user in that group, and a
+# READ-ONLY token (write_enabled false, composite nbt_). An operator-placed
+# (SOPS/age) token always wins while NetBox still accepts it. Skipped with a
+# notice when DASHBOARD_SECRETS_DIR is unset so --netbox stays standalone.
+provision_dashboard_netbox_token() {
+  local token_file stored code response key token composite token_id
+  local group_id perm_id perm_payload user_id user_payload dash_pass
+
+  if [[ -z "${DASHBOARD_SECRETS_DIR:-}" ]]; then
+    echo "NOTICE: DASHBOARD_SECRETS_DIR is not set; skipping dashboard NetBox read-only token provisioning."
+    return 0
+  fi
+  validate_var_path "${DASHBOARD_SECRETS_DIR}"
+  token_file="${DASHBOARD_SECRETS_DIR}/netbox-readonly.token"
+  install -d -m 0700 "${DASHBOARD_SECRETS_DIR}"
+  chown 1000:1000 "${DASHBOARD_SECRETS_DIR}"
+
+  if [[ -s "${token_file}" ]]; then
+    stored="$(cat "${token_file}")"
+    code="$(netbox_probe_ipam_read "${stored}")"
+    if [[ "${code}" == "200" ]]; then
+      echo "Reusing existing dashboard NetBox token: ${token_file}"
+      chmod 0600 "${token_file}"
+      chown 1000:1000 "${token_file}"
+      return 0
+    fi
+    echo "Stored dashboard NetBox token was rejected (HTTP ${code}); provisioning a replacement."
+  fi
+
+  # dashboard-readonly group + view-only object permission on the two IPAM
+  # models the panel reads (Prefix and IP address).
+  group_id="$(netbox_get_object_id /api/users/groups/ "name=dashboard-readonly")"
+  if [[ -z "${group_id}" ]]; then
+    group_id="$(netbox_create_object /api/users/groups/ '{"name":"dashboard-readonly"}')"
+  fi
+  [[ -n "${group_id}" ]] || fail "Failed to create or find the dashboard-readonly NetBox group."
+
+  perm_id="$(netbox_get_object_id /api/users/permissions/ "name=dashboard-readonly")"
+  perm_payload="$(printf '{"name":"dashboard-readonly","enabled":true,"object_types":["ipam.prefix","ipam.ipaddress"],"actions":["view"],"groups":[%s]}' "${group_id}")"
+  if [[ -z "${perm_id}" ]]; then
+    netbox_create_object /api/users/permissions/ "${perm_payload}" >/dev/null
+  else
+    netbox_patch_object /api/users/permissions/ "${perm_id}" "${perm_payload}"
+  fi
+
+  # Non-privileged service user (no staff/superuser) in the read-only group. The
+  # password is generated per pass and used only to provision the token below;
+  # it is never stored.
+  dash_pass="$(openssl rand -hex 24)"
+  user_id="$(netbox_get_object_id /api/users/users/ "username=dashboard")"
+  if [[ -z "${user_id}" ]]; then
+    user_payload="$(printf '{"username":"dashboard","password":"%s","is_active":true,"is_staff":false,"is_superuser":false,"groups":[%s]}' "${dash_pass}" "${group_id}")"
+    user_id="$(netbox_create_object /api/users/users/ "${user_payload}")"
+  else
+    user_payload="$(printf '{"password":"%s","is_active":true,"is_staff":false,"is_superuser":false,"groups":[%s]}' "${dash_pass}" "${group_id}")"
+    netbox_patch_object /api/users/users/ "${user_id}" "${user_payload}"
+  fi
+  [[ -n "${user_id}" ]] || fail "Failed to create or find the dashboard NetBox service user."
+
+  # Housekeeping: retire previous provider-box dashboard tokens so redeploys do
+  # not accumulate live credentials.
+  netbox_retire_tokens_by_description "provider-box%20dashboard" "dashboard"
+
+  response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"dashboard\",\"password\":\"${dash_pass}\",\"description\":\"provider-box dashboard\",\"write_enabled\":false}")" || \
+    fail "Failed to provision a dashboard NetBox token."
+  key="$(printf '%s' "${response}" | json_string_field key)"
+  token="$(printf '%s' "${response}" | json_string_field token)"
+  token_id="$(printf '%s' "${response}" | json_first_id)"
+  [[ -n "${key}" && -n "${token}" ]] || \
+    fail "dashboard NetBox token provisioning returned an incomplete response (key length: ${#key}, token length: ${#token})."
+  composite="nbt_${key}.${token}"
+
+  # Enforce read-only at the token level regardless of whether the provision
+  # request body honored write_enabled.
+  [[ -n "${token_id}" ]] && netbox_patch_object /api/users/tokens/ "${token_id}" '{"write_enabled":false}'
+
+  code="$(netbox_probe_ipam_read "${composite}")"
+  [[ "${code}" == "200" ]] || \
+    fail "NetBox rejected the freshly provisioned dashboard token on IPAM read: HTTP ${code}."
+
+  install -m 0600 /dev/null "${token_file}"
+  printf '%s' "${composite}" > "${token_file}"
+  chmod 0600 "${token_file}"
+  chown 1000:1000 "${token_file}"
+  echo "Provisioned a read-only dashboard NetBox token at: ${token_file}"
 }
 
 netbox_get_object_id() {
@@ -740,6 +853,7 @@ do_netbox() {
   wait_for_netbox_https
   seed_netbox_via_api
   provision_dns_sync_netbox_token
+  provision_dashboard_netbox_token
   ufw allow "${NETBOX_PORT}/tcp" || true
   print_netbox_summary
 }
