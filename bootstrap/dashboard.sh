@@ -151,9 +151,11 @@ do_dashboard() {
   ufw allow "${DASHBOARD_PORT}/tcp" || true
   verify_dashboard_https
   echo "Dashboard is ready: https://${DASHBOARD_FQDN}:${DASHBOARD_PORT}/"
-  echo "Optional read-only tokens (panels degrade to 'not configured' without them):"
-  echo "  ${DASHBOARD_SECRETS_DIR}/netbox-readonly.token  (NetBox IPAM panel)"
-  echo "  ${DASHBOARD_SECRETS_DIR}/technitium.token        (Technitium DNS panel)"
+  echo "Read-only tokens are auto-provisioned by --netbox and --technitium (an"
+  echo "operator-placed SOPS/age token wins); panels degrade to 'not configured'"
+  echo "until the producing module has run:"
+  echo "  ${DASHBOARD_SECRETS_DIR}/netbox-readonly.token  (NetBox IPAM panel, from --netbox)"
+  echo "  ${DASHBOARD_SECRETS_DIR}/technitium.token        (Technitium DNS panel, from --technitium)"
   echo "${DASHBOARD_FQDN} resolves by name once the DNS backend publishes it (unbound renders it directly; technitium via --dns-sync)."
 }
 

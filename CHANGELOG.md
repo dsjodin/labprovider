@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-10 (dashboard token auto-provisioning)
+
+### Features
+- Auto-provision the dashboard's read-only upstream tokens at deploy time, mirroring the existing `provision_dns_sync_netbox_token` pattern (validity-probe idempotency, producer-side, skip-if-not-configured). No manual token placement is needed for the NetBox and Technitium panels to light up on a fresh `--netbox`/`--technitium`/`--dashboard` cycle.
+- `--netbox` (`bootstrap/netbox.sh`) now also creates the dashboard's minimum-read NetBox path: a `dashboard-readonly` group with a view-only object permission scoped to IPAM `Prefix` and `IP address` (the only two models the panel reads), a non-privileged service user (`dashboard`, no staff/superuser) in that group, and a READ-ONLY token (`write_enabled=false`, composite `nbt_<key>.<token>`). The token is written to `${DASHBOARD_SECRETS_DIR}/netbox-readonly.token` (`0600`, uid `1000`). Idempotent by an IPAM-read validity probe. Skipped with a `NOTICE` when `DASHBOARD_SECRETS_DIR` is unset so `--netbox` stays standalone-deployable.
+- `--technitium` (`bootstrap/technitium.sh`) now creates a non-admin `dashboard` user and grants it `Settings: View` (the DNS panel's `settings/get` call; `Dashboard`/`Zones` view already come from the built-in `Everyone` group), then mints a permanent API token (`admin/sessions/createToken`) carrying that user's limited privileges. Written to `${DASHBOARD_SECRETS_DIR}/technitium.token`, same ownership/idempotency/skip rules (probe: `settings/get`).
+- Operator-placed tokens still win: when a token file already exists and validates, it is reused and never overwritten, so a manual/SOPS/age override is respected.
+
+### Changes
+- Refactor the NetBox token housekeeping (retire previous provider-box tokens by description) into `netbox_retire_tokens_by_description`, now shared by the dns-sync and dashboard token provisioners.
+- `--dashboard` now reports the tokens as auto-provisioned by the producing modules (with the operator-override note) instead of describing them as manual-only; the same clarification is applied to `config/provider-box.env.example`. No dashboard service code change was needed: `DASHBOARD_NETBOX_URL`/`DASHBOARD_TECHNITIUM_URL` and the token-file paths were already wired, and the panels already degrade to "not configured" when a token is missing or invalid.
+
+---
+
 ## 2026-07-10
 
 ### Fixes

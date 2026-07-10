@@ -426,6 +426,105 @@ provision_technitium_api_token() {
   echo "Provisioned a Technitium API token for dns-sync at: ${token_file}"
 }
 
+# Auto-provision the dedicated read-only Technitium token the dashboard DNS
+# panel consumes, mirroring provision_technitium_api_token (validity-probe
+# idempotency, producer-side, skip-if-not-configured). Creates a non-admin
+# 'dashboard' service user and grants it Settings:View (Dashboard and Zones view
+# already come from the built-in Everyone group), then mints a permanent API
+# token carrying that user's deliberately limited privileges. An operator-placed
+# (SOPS/age) token always wins while Technitium still accepts it. Skipped with a
+# notice when DASHBOARD_SECRETS_DIR is unset so --technitium stays standalone.
+provision_technitium_dashboard_token() {
+  local console_url token_file stored status admin_token dash_pass create_response set_response api_token
+  console_url="http://127.0.0.1:${TECHNITIUM_HTTP_PORT}"
+
+  if [[ -z "${DASHBOARD_SECRETS_DIR:-}" ]]; then
+    echo "NOTICE: DASHBOARD_SECRETS_DIR is not set; skipping dashboard Technitium token provisioning."
+    return 0
+  fi
+  validate_var_path "${DASHBOARD_SECRETS_DIR}"
+  token_file="${DASHBOARD_SECRETS_DIR}/technitium.token"
+  install -d -m 0700 "${DASHBOARD_SECRETS_DIR}"
+  chown 1000:1000 "${DASHBOARD_SECRETS_DIR}"
+
+  # The DNS panel reads settings/get (the most-privileged call it makes), so the
+  # validity probe uses it: an operator token that cannot read settings is not
+  # reused.
+  if [[ -s "${token_file}" ]]; then
+    stored="$(cat "${token_file}")"
+    status="$(curl --silent --show-error --get \
+      --data-urlencode "token=${stored}" \
+      "${console_url}/api/settings/get" | technitium_json_string_field status || true)"
+    if [[ "${status}" == "ok" ]]; then
+      echo "Reusing existing dashboard Technitium token: ${token_file}"
+      chmod 0600 "${token_file}"
+      chown 1000:1000 "${token_file}"
+      return 0
+    fi
+    echo "Stored dashboard Technitium token is no longer valid; creating a replacement."
+  fi
+
+  admin_token="$(technitium_api_login_token)"
+
+  # Create the non-admin service user only when it is absent (idempotent, and
+  # avoids depending on the create call's duplicate-error text). New users join
+  # only the built-in 'Everyone' group (Dashboard/Zones view, no admin rights).
+  # The generated password only satisfies the create call; the token below is
+  # minted with admin authority, so it is never needed again or stored.
+  status="$(curl --silent --show-error --get \
+    --data-urlencode "token=${admin_token}" \
+    --data-urlencode "user=dashboard" \
+    "${console_url}/api/admin/users/get" | technitium_json_string_field status || true)"
+  if [[ "${status}" != "ok" ]]; then
+    dash_pass="$(openssl rand -hex 24)"
+    create_response="$(curl --silent --show-error --get \
+      --data-urlencode "token=${admin_token}" \
+      --data-urlencode "user=dashboard" \
+      --data-urlencode "displayName=Provider Box Dashboard" \
+      --data-urlencode "pass=${dash_pass}" \
+      "${console_url}/api/admin/users/create" || true)"
+    status="$(printf '%s' "${create_response}" | technitium_json_string_field status)"
+    [[ "${status}" == "ok" ]] || \
+      fail "Failed to create the Technitium dashboard user. Response: ${create_response}"
+  fi
+
+  # Grant the dashboard user Settings:View (the DNS panel reads settings/get).
+  # The default admin groups are re-sent so setting the section does not drop the
+  # existing group access.
+  set_response="$(curl --silent --show-error --get \
+    --data-urlencode "token=${admin_token}" \
+    --data-urlencode "section=Settings" \
+    --data-urlencode "groupPermissions=Administrators|true|true|true|DNS Administrators|true|true|true" \
+    --data-urlencode "userPermissions=dashboard|true|false|false" \
+    "${console_url}/api/admin/permissions/set" || true)"
+  status="$(printf '%s' "${set_response}" | technitium_json_string_field status)"
+  [[ "${status}" == "ok" ]] || \
+    fail "Failed to grant the Technitium dashboard user Settings:View. Response: ${set_response}"
+
+  # Mint a permanent API token for the dashboard user with its limited privileges.
+  create_response="$(curl --silent --show-error --get \
+    --data-urlencode "token=${admin_token}" \
+    --data-urlencode "user=dashboard" \
+    --data-urlencode "tokenName=provider-box-dashboard" \
+    "${console_url}/api/admin/sessions/createToken" || true)"
+  api_token="$(printf '%s' "${create_response}" | technitium_json_string_field token)"
+  [[ -n "${api_token}" ]] || \
+    fail "Failed to create a Technitium dashboard API token. Response: ${create_response}"
+
+  # Verify the minted token can read settings (and therefore zones) before storing.
+  status="$(curl --silent --show-error --get \
+    --data-urlencode "token=${api_token}" \
+    "${console_url}/api/settings/get" | technitium_json_string_field status || true)"
+  [[ "${status}" == "ok" ]] || \
+    fail "Freshly minted Technitium dashboard token cannot read settings; check the Settings:View grant."
+
+  install -m 0600 /dev/null "${token_file}"
+  printf '%s' "${api_token}" > "${token_file}"
+  chmod 0600 "${token_file}"
+  chown 1000:1000 "${token_file}"
+  echo "Provisioned a read-only dashboard Technitium token at: ${token_file}"
+}
+
 do_technitium() {
   require_technitium_vars
   require_technitium_ca_vars
@@ -466,6 +565,7 @@ do_technitium() {
   configure_technitium_web_tls
   verify_technitium_https
   provision_technitium_api_token
+  provision_technitium_dashboard_token
   point_host_resolver_at_technitium
   echo "Technitium is ready. Web console: http://${DNS_FQDN}:${TECHNITIUM_HTTP_PORT} and https://${DNS_FQDN}:${TECHNITIUM_HTTPS_PORT}"
   echo "Web service HTTPS is enabled with the step-ca-issued certificate."
