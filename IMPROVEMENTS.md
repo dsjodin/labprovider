@@ -131,22 +131,13 @@ blast radius.
   dashboard phase-2 items (history/collector, UI auth) are tracked in
   `services/dashboard/README.md`.
 
-## 8. --unbound host resolver takeover has no restore path
+## 8. --unbound host resolver takeover has no restore path (RESOLVED)
 
-- What: `configure_resolv_conf` disables `systemd-resolved` and rewrites
-  `/etc/resolv.conf` unconditionally, and `--unbound` has no `--remove`.
-- Where: `bootstrap/provider-box.sh:215-224`, called from
-  `bootstrap/dns.sh:38`.
-- Why it matters: The technitium module got a careful marker-based
-  disable/restore flow plus resolution verification for the same
-  operation; the unbound path still breaks host DNS permanently if unbound
-  fails to start, with manual recovery only.
-- Suggested fix: Reuse the technitium module's pattern: verify resolution
-  before/after, use a marked drop-in for the stub listener instead of
-  disabling the whole service, and add a `--unbound --remove` that
-  restores stock configuration.
-- Blast radius: Medium. Changes host-level behavior of the default
-  backend; needs care on hosts already converted by the old flow.
+- Resolved by removal: the Unbound backend was deleted entirely
+  (see CHANGELOG 2026-07-10). Technitium's marker-based disable/restore
+  flow is the only host resolver path. Hosts previously converted by the
+  old `configure_resolv_conf` flow must restore `systemd-resolved`
+  manually.
 
 ## 9. Four copies of the same JSON field extractor, six copies of the CA readiness gate
 

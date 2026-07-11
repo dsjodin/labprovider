@@ -1,6 +1,6 @@
-// Package seed parses the config/dns.seed format (compatible with 1.0's
-// unbound.records) into typed entries. Reused by every command that consumes
-// the seed - NetBox import, Technitium direct apply, validation.
+// Package seed parses the config/dns.seed format into typed entries. Reused
+// by every command that consumes the seed - NetBox import, Technitium direct
+// apply, validation.
 package seed
 
 import (

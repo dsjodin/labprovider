@@ -156,7 +156,7 @@ do_dashboard() {
   echo "until the producing module has run:"
   echo "  ${DASHBOARD_SECRETS_DIR}/netbox-readonly.token  (NetBox IPAM panel, from --netbox)"
   echo "  ${DASHBOARD_SECRETS_DIR}/technitium.token        (Technitium DNS panel, from --technitium)"
-  echo "${DASHBOARD_FQDN} resolves by name once the DNS backend publishes it (unbound renders it directly; technitium via --dns-sync)."
+  echo "${DASHBOARD_FQDN} resolves by name once --dns-sync publishes it via Technitium."
 }
 
 remove_dashboard() {

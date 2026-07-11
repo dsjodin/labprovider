@@ -4,7 +4,7 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${REPO_ROOT}/config/provider-box.env"
 ENV_EXAMPLE_FILE="${REPO_ROOT}/config/provider-box.env.example"
-RECORDS_FILE="${REPO_ROOT}/config/unbound.records"
+RECORDS_FILE="${REPO_ROOT}/config/dns.seed"
 TEMPLATE_DIR="${REPO_ROOT}/templates"
 BOOTSTRAP_DIR="${REPO_ROOT}/bootstrap"
 APT_UPDATED=0
@@ -14,7 +14,6 @@ trap 'echo "Error: command failed on line ${LINENO}. See output above for detail
 usage() {
   cat <<USAGE
 Usage:
-  sudo bash bootstrap/provider-box.sh --unbound
   sudo bash bootstrap/provider-box.sh --ntp
   sudo bash bootstrap/provider-box.sh --rsyslog
   sudo bash bootstrap/provider-box.sh --ca
@@ -40,10 +39,10 @@ Usage:
   sudo bash bootstrap/provider-box.sh --all
   sudo bash bootstrap/provider-box.sh --all --remove
 
-Note: --all deploys the DNS backend selected by DNS_BACKEND (unbound first,
-or technitium after --ca) and the read-only dashboard last. --dns-sync is NOT
-included in --all and must be deployed explicitly after --all; with the
-technitium backend, run it after --all so the dashboard FQDN resolves by name.
+Note: --all deploys Technitium right after --ca (Technitium needs a step-ca
+certificate) and the read-only dashboard last. --dns-sync is NOT included in
+--all and must be deployed explicitly after --all so the dashboard FQDN
+resolves by name.
 USAGE
 }
 
@@ -59,10 +58,6 @@ fail() {
 require_env_file() {
   [[ -f "$ENV_FILE" ]] || fail "Missing ${ENV_FILE}"
   check_provider_env_is_current
-}
-
-require_records_file() {
-  [[ -f "$RECORDS_FILE" ]] || fail "Missing ${RECORDS_FILE}"
 }
 
 require_template_file() {
@@ -151,11 +146,6 @@ common_pkgs() {
   require_command dig
 }
 
-unbound_pkgs() {
-  apt_update_once
-  install_pkg unbound
-}
-
 # step-ca needs jq to rewrite ca.json's db/crl stanzas after the container
 # self-initializes (the init flow always writes a badger stanza first).
 ca_pkgs() {
@@ -222,54 +212,15 @@ EOF
     fail "docker compose v2 is required but not available."
 }
 
-configure_resolv_conf() {
-  systemctl disable systemd-resolved || true
-  systemctl stop systemd-resolved || true
-  rm -f /etc/resolv.conf
-  cat > /etc/resolv.conf <<RESOLV
-nameserver 127.0.0.1
-search ${SEARCH_DOMAIN}
-RESOLV
-}
-
-build_dns_record_block() {
-  local line fqdn ip_value ip
-  DNS_RECORD_BLOCK=""
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    [[ "$line" = \#* ]] && continue
-    parse_dns_record_line "$line"
-    fqdn="${DNS_RECORD_FQDN}"
-    ip_value="${DNS_RECORD_TARGET}"
-    ip="$(extract_ipv4_from_value "${ip_value}")"
-    DNS_RECORD_BLOCK="${DNS_RECORD_BLOCK}local-data: \"${fqdn} A ${ip}\"
-local-data-ptr: \"${ip} ${fqdn}\"
-"
-  done < "$RECORDS_FILE"
-  export DNS_RECORD_BLOCK
-}
-
 # Single source of truth for the built-in Provider Box service FQDNs, consumed
-# by both DNS backends: the unbound config render and the dns-sync built-in
-# record synthesis. Prints one FQDN per line; unset services are skipped.
+# by the dns-sync built-in record synthesis. Prints one FQDN per line; unset
+# services are skipped.
 provider_box_builtin_fqdns() {
   local var
   for var in PROVIDER_BOX_FQDN DNS_FQDN CA_FQDN DEPOT_FQDN KEYCLOAK_FQDN AUTHENTIK_FQDN NETBOX_FQDN S3_FQDN SFTP_FQDN SYSLOG_FQDN DASHBOARD_FQDN; do
     [[ -n "${!var:-}" ]] && printf '%s\n' "${!var}"
   done
   return 0
-}
-
-build_provider_box_dns_block() {
-  local fqdn
-  PROVIDER_BOX_DNS_BLOCK=""
-  while IFS= read -r fqdn; do
-    PROVIDER_BOX_DNS_BLOCK="${PROVIDER_BOX_DNS_BLOCK}local-data: \"${fqdn} A ${HOST_IPV4}\"
-"
-  done < <(provider_box_builtin_fqdns)
-  PROVIDER_BOX_DNS_BLOCK="${PROVIDER_BOX_DNS_BLOCK}local-data-ptr: \"${HOST_IPV4} ${PROVIDER_BOX_FQDN}\"
-"
-  export PROVIDER_BOX_DNS_BLOCK
 }
 
 render_template() {
@@ -492,40 +443,20 @@ require_allow_net_vars() {
 
 require_dns_vars() {
   local var
-  for var in DNS_FQDN UNBOUND_FORWARDER; do
+  for var in DNS_FQDN DNS_FORWARDER; do
     [[ -n "${!var:-}" ]] || fail "Missing required variable: $var"
   done
 
   validate_var_fqdn "${DNS_FQDN}"
-  validate_var_ipv4 "${UNBOUND_FORWARDER}"
+  validate_var_ipv4 "${DNS_FORWARDER}"
 }
 
-validate_dns_backend() {
-  [[ -n "${DNS_BACKEND:-}" ]] || fail "Missing required variable: DNS_BACKEND"
-  [[ "${DNS_BACKEND}" == "unbound" || "${DNS_BACKEND}" == "technitium" ]] || \
-    fail "DNS_BACKEND must be either unbound or technitium"
-}
-
-# DNS_FORWARDER is the shared upstream forwarder for whichever DNS_BACKEND is
-# selected. It falls back to UNBOUND_FORWARDER (the original variable) when
-# unset or empty, so existing envs keep working. Resolves and validates in
-# place, exporting DNS_FORWARDER for template rendering and API calls.
+# DNS_FORWARDER is the upstream forwarder Technitium uses for external
+# resolution. Validates and exports it for template rendering and API calls.
 resolve_dns_forwarder() {
-  if [[ -z "${DNS_FORWARDER:-}" ]]; then
-    [[ -n "${UNBOUND_FORWARDER:-}" ]] || \
-      fail "Missing required variable: DNS_FORWARDER (or UNBOUND_FORWARDER for backward compatibility)"
-    echo "DNS_FORWARDER is not set; falling back to UNBOUND_FORWARDER (${UNBOUND_FORWARDER})."
-    DNS_FORWARDER="${UNBOUND_FORWARDER}"
-  fi
+  [[ -n "${DNS_FORWARDER:-}" ]] || fail "Missing required variable: DNS_FORWARDER"
   validate_var_ipv4 "${DNS_FORWARDER}"
   export DNS_FORWARDER
-}
-
-require_dns_backend() {
-  local wanted="$1"
-  validate_dns_backend
-  [[ "${DNS_BACKEND}" == "${wanted}" ]] || \
-    fail "This stage requires DNS_BACKEND=${wanted}, but DNS_BACKEND=${DNS_BACKEND} is configured. Only one DNS backend can own port 53."
 }
 
 require_ntp_vars() {
@@ -564,10 +495,6 @@ require_keycloak_vars() {
   validate_var_not_placeholder "${KEYCLOAK_BOOTSTRAP_CLIENT_ID}"
   validate_var_not_placeholder "${KEYCLOAK_BOOTSTRAP_CLIENT_SECRET}"
 }
-
-require_module_file "${BOOTSTRAP_DIR}/dns.sh"
-# shellcheck disable=SC1090
-source "${BOOTSTRAP_DIR}/dns.sh"
 
 require_module_file "${BOOTSTRAP_DIR}/ntp.sh"
 # shellcheck disable=SC1090
@@ -630,7 +557,7 @@ for arg in "$@"; do
       [[ "${REMOVE_MODE}" -eq 0 ]] || fail "Duplicate --remove flag"
       REMOVE_MODE=1
       ;;
-    --unbound|--ntp|--rsyslog|--ca|--depot|--keycloak|--authentik|--netbox|--s3|--sftp|--technitium|--dns-sync|--dashboard|--all)
+    --ntp|--rsyslog|--ca|--depot|--keycloak|--authentik|--netbox|--s3|--sftp|--technitium|--dns-sync|--dashboard|--all)
       [[ -z "${TARGET_SERVICE}" ]] || fail "Specify exactly one service flag"
       TARGET_SERVICE="$arg"
       ;;
@@ -648,19 +575,6 @@ done
 [[ -n "${TARGET_SERVICE}" ]] || fail "No service flag provided"
 
 case "${TARGET_SERVICE}" in
-  --unbound)
-    require_env_file
-    load_env
-    if [[ "${REMOVE_MODE}" -eq 1 ]]; then
-      fail "Removal is not implemented for --unbound"
-    fi
-    require_dns_backend "unbound"
-    require_common_vars
-    require_allow_net_vars
-    require_dns_vars
-    require_records_file
-    do_unbound
-    ;;
   --ntp)
     require_env_file
     load_env
@@ -757,7 +671,6 @@ case "${TARGET_SERVICE}" in
     if [[ "${REMOVE_MODE}" -eq 1 ]]; then
       remove_technitium
     else
-      require_dns_backend "technitium"
       require_common_vars
       do_technitium
     fi
@@ -768,7 +681,6 @@ case "${TARGET_SERVICE}" in
     if [[ "${REMOVE_MODE}" -eq 1 ]]; then
       remove_dns_sync
     else
-      require_dns_backend "technitium"
       require_common_vars
       do_dns_sync
     fi
@@ -797,19 +709,12 @@ case "${TARGET_SERVICE}" in
       remove_ca
     else
       require_env_vars
-      validate_dns_backend
-      if [[ "${DNS_BACKEND}" == "unbound" ]]; then
-        require_records_file
-        do_unbound
-      fi
       do_ntp
       do_rsyslog
       do_ca
-      # Technitium depends on step-ca for its certificate, so with
-      # DNS_BACKEND=technitium the DNS stage runs after the CA is up.
-      if [[ "${DNS_BACKEND}" == "technitium" ]]; then
-        do_technitium
-      fi
+      # Technitium depends on step-ca for its certificate, so the DNS stage
+      # runs after the CA is up.
+      do_technitium
       do_depot
       do_keycloak
       do_authentik
@@ -819,9 +724,7 @@ case "${TARGET_SERVICE}" in
       # The dashboard is a read-only view of the services above, so it runs
       # last. Its scoped upstream tokens are optional (panels degrade to
       # "not configured"), so --all stays coherent when they are unset. DNS
-      # resolution of DASHBOARD_FQDN comes from the selected backend: unbound
-      # renders it into the DNS block here; with technitium it lands after the
-      # post---all --dns-sync run.
+      # resolution of DASHBOARD_FQDN lands after the post---all --dns-sync run.
       do_dashboard
     fi
     ;;

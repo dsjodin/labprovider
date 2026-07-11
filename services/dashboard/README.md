@@ -87,17 +87,16 @@ manual path uses. The module follows the standard five-step flow:
 
 ```sh
 sudo bash bootstrap/provider-box.sh --ca
-sudo bash bootstrap/provider-box.sh --technitium   # or --unbound
+sudo bash bootstrap/provider-box.sh --technitium
 sudo bash bootstrap/provider-box.sh --netbox
-sudo bash bootstrap/provider-box.sh --dns-sync      # technitium backend
+sudo bash bootstrap/provider-box.sh --dns-sync
 sudo bash bootstrap/provider-box.sh --dashboard
 sudo bash bootstrap/provider-box.sh --dashboard --remove
 ```
 
-**DNS:** `--dashboard` (via `provider_box_builtin_fqdns`) makes both DNS backends
-publish `DASHBOARD_FQDN -> HOST_IP`. With the unbound backend the record is
-rendered directly; with the technitium backend `dns-sync` synthesizes it on its
-next pass, so `dashboard.<domain>` resolves by name after `--dns-sync`.
+**DNS:** `--dashboard` (via `provider_box_builtin_fqdns`) publishes
+`DASHBOARD_FQDN -> HOST_IP`: `dns-sync` synthesizes the record on its next
+pass, so `dashboard.<domain>` resolves by name after `--dns-sync`.
 
 The scoped read-only tokens (below) are **optional** for the module - if absent,
 the NetBox and Technitium panels render "not configured", so `--dashboard` and

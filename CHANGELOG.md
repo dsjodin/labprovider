@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-10 (remove unbound; Technitium is the only DNS backend)
+
+### Removed
+- The host-based Unbound DNS backend is removed entirely: `bootstrap/dns.sh`, `templates/unbound.conf.tpl`, `config/unbound.records.example`, the `--unbound` flag, and the `DNS_BACKEND` backend switch are gone. Technitium (with NetBox and dns-sync) is the only DNS path; `--all` always deploys Technitium right after `--ca`.
+- `UNBOUND_FORWARDER` is removed from the env model. `DNS_FORWARDER` is now required (no fallback). `DNS_BACKEND` is removed; `--technitium` and `--dns-sync` no longer check it.
+
+### Changes
+- External/custom DNS records now live only in `config/dns.seed` (same `<fqdn> <ip[/cidr]>` format as the removed `config/unbound.records`). `--netbox` imports `config/dns.seed` when the file exists; record-source metadata in NetBox descriptions says `dns.seed`.
+- Dead code dropped from the dispatcher with the backend switch: `unbound_pkgs`, `configure_resolv_conf` (the unconditional resolver takeover with no restore path), `build_dns_record_block`, `build_provider_box_dns_block`, `require_records_file`, `validate_dns_backend`, and `require_dns_backend`.
+
+This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a Go control plane replacing the bash bootstrap).
+
+---
+
 ## 2026-07-10 (dashboard token auto-provisioning)
 
 ### Features

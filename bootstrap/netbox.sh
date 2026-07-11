@@ -99,7 +99,7 @@ build_netbox_dns_seed_block() {
     parse_dns_record_line "$line"
     fqdn="${DNS_RECORD_FQDN}"
     address_value="${DNS_RECORD_TARGET}"
-    NETBOX_DNS_RECORDS="${NETBOX_DNS_RECORDS}${fqdn}|${address_value}|unbound.records
+    NETBOX_DNS_RECORDS="${NETBOX_DNS_RECORDS}${fqdn}|${address_value}|dns.seed
 "
   done < "${RECORDS_FILE}"
 
@@ -837,7 +837,7 @@ do_netbox() {
   if [[ -f "${RECORDS_FILE}" ]]; then
     validate_records_file
   else
-    echo "No custom DNS records file found at ${RECORDS_FILE}; skipping import. Copy config/unbound.records.example to config/unbound.records to add external/custom records."
+    echo "No custom DNS records file found at ${RECORDS_FILE}; skipping import. Copy config/dns.seed.example to config/dns.seed to add external/custom records."
   fi
   common_pkgs
   docker_pkgs
