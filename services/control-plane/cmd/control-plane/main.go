@@ -83,8 +83,12 @@ func main() {
 		engine.Register(deploy.Rsyslog{})
 		engine.Register(deploy.CA{})
 		engine.Register(deploy.Technitium{})
+		engine.Register(deploy.Depot{})
+		engine.Register(deploy.Keycloak{})
+		engine.Register(deploy.Authentik{})
 		engine.Register(deploy.Netbox{})
 		engine.Register(deploy.S3{})
+		engine.Register(deploy.SFTP{})
 		engine.Register(deploy.DNSSync{})
 		opt.Engine = engine
 	} else {

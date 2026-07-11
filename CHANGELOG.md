@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-11 (control plane deploys depot, keycloak, authentik, sftpgo)
+
+### Features
+- The deploy engine now covers every service (Phase 5 of the v2 plan): Go ports of `bootstrap/depot.sh`, `bootstrap/keycloak.sh`, `bootstrap/authentik.sh`, and `bootstrap/sftp.sh`.
+  - **depot**: PROD directory layout, step-ca cert, HTTP+HTTPS health waits; the managed `htpasswd` is generated with a native APR1-MD5 implementation - the apache2-utils host package is no longer needed.
+  - **keycloak**: the bootstrap realm import (realm, group, VCF OIDC client, optional lab user) is built with encoding/json instead of the json_escape/heredoc templating; `keycloak-full-chain.pem` (leaf+intermediate+root) is still produced for the VCF SSO chain upload.
+  - **authentik**: blueprint render, fullchain.pem/privkey.pem for certificate discovery (reuse check runs against the discovery names), HTTP + token-auth readiness gates, blueprint re-apply once the keypair is discovered, brand web-certificate PATCH, and the final verify that the served cert chains to step-ca.
+  - **sftp**: HTTPS admin UI cert, data/home ownership, optional backup user via the SFTPGo API (created once, never modified after).
+- With this, "deploy all" from the control plane UI covers the entire service catalog in dependency order: chrony, rsyslog, ca, technitium, depot, keycloak, authentik, netbox, s3, sftp, dns-sync.
+
+---
+
 ## 2026-07-11 (control plane deploys the DNS chain: technitium, netbox, dns-sync)
 
 ### Features

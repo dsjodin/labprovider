@@ -1,0 +1,21 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    restart: unless-stopped
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "kcadmin"
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_HEALTH_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/certs/keycloak.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/certs/keycloak.key
+    ports:
+      - "8443:8443"
+    volumes:
+      - /opt/provider-box/keycloak/certs:/opt/keycloak/certs:ro
+      - /opt/provider-box/keycloak/data:/opt/keycloak/data
+      - /opt/provider-box/runtime/keycloak/import:/opt/keycloak/data/import:ro
+    command:
+      - start
+      - --import-realm
+      - --hostname=https://auth.sddc.lab:8443

@@ -99,6 +99,63 @@ var schema = []requirement{
 	{"DNS_SYNC_TECHNITIUM_URL", []string{"dns-sync"}, nil},
 	{"DNS_SYNC_INTERVAL", []string{"dns-sync"}, nil},
 
+	// VCF offline depot (require_depot_vars).
+	{"DEPOT_FQDN", []string{"depot"}, []func(string) error{checkFQDN}},
+	{"DEPOT_HTTP_PORT", []string{"depot"}, []func(string) error{checkPort}},
+	{"DEPOT_HTTPS_PORT", []string{"depot"}, []func(string) error{checkPort}},
+	{"DEPOT_DIR", []string{"depot"}, []func(string) error{checkAbsPath}},
+	{"DEPOT_DATA_DIR", []string{"depot"}, []func(string) error{checkAbsPath}},
+	{"DEPOT_CERT_DIR", []string{"depot"}, []func(string) error{checkAbsPath}},
+	{"DEPOT_AUTH_DIR", []string{"depot"}, []func(string) error{checkAbsPath}},
+	{"DEPOT_BASIC_AUTH_USER", []string{"depot"}, nil},
+	{"DEPOT_BASIC_AUTH_PASSWORD", []string{"depot"}, []func(string) error{checkNotPlaceholder}},
+	{"DEPOT_IMAGE", []string{"depot"}, []func(string) error{checkImage}},
+
+	// Keycloak (require_keycloak_vars).
+	{"KEYCLOAK_DIR", []string{"keycloak"}, []func(string) error{checkAbsPath}},
+	{"KEYCLOAK_FQDN", []string{"keycloak"}, []func(string) error{checkFQDN}},
+	{"KEYCLOAK_PORT", []string{"keycloak"}, []func(string) error{checkPort}},
+	{"KEYCLOAK_IMAGE", []string{"keycloak"}, []func(string) error{checkImage}},
+	{"KEYCLOAK_ADMIN_USER", []string{"keycloak"}, nil},
+	{"KEYCLOAK_ADMIN_PASSWORD", []string{"keycloak"}, []func(string) error{checkNotPlaceholder}},
+	{"KEYCLOAK_BOOTSTRAP_REALM_NAME", []string{"keycloak"}, []func(string) error{checkNotPlaceholder}},
+	{"KEYCLOAK_BOOTSTRAP_GROUP_NAME", []string{"keycloak"}, []func(string) error{checkNotPlaceholder}},
+	{"KEYCLOAK_BOOTSTRAP_CLIENT_ID", []string{"keycloak"}, []func(string) error{checkNotPlaceholder}},
+	{"KEYCLOAK_BOOTSTRAP_CLIENT_SECRET", []string{"keycloak"}, []func(string) error{checkNotPlaceholder}},
+	{"KEYCLOAK_BOOTSTRAP_CLIENT_REDIRECT_URIS", []string{"keycloak"}, nil},
+
+	// Authentik (require_authentik_vars).
+	{"AUTHENTIK_DIR", []string{"authentik"}, []func(string) error{checkAbsPath}},
+	{"AUTHENTIK_FQDN", []string{"authentik"}, []func(string) error{checkFQDN}},
+	{"AUTHENTIK_PORT", []string{"authentik"}, []func(string) error{checkPort}},
+	{"AUTHENTIK_IMAGE", []string{"authentik"}, []func(string) error{checkImage}},
+	{"AUTHENTIK_POSTGRES_IMAGE", []string{"authentik"}, []func(string) error{checkImage}},
+	{"AUTHENTIK_ADMIN_PASSWORD", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_API_TOKEN", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_SECRET_KEY", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_PG_DB", []string{"authentik"}, []func(string) error{checkPgIdentifier}},
+	{"AUTHENTIK_PG_USER", []string{"authentik"}, []func(string) error{checkPgIdentifier}},
+	{"AUTHENTIK_PG_PASSWORD", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_BOOTSTRAP_CLIENT_ID", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_BOOTSTRAP_CLIENT_SECRET", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_BOOTSTRAP_GROUP_NAME", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_BOOTSTRAP_USERNAME", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_BOOTSTRAP_USER_PASSWORD", []string{"authentik"}, []func(string) error{checkNotPlaceholder}},
+	{"AUTHENTIK_BOOTSTRAP_USER_EMAIL_DOMAIN", []string{"authentik"}, []func(string) error{checkFQDN}},
+	{"AUTHENTIK_BOOTSTRAP_CLIENT_REDIRECT_URIS", []string{"authentik"}, nil},
+
+	// SFTPGo (require_sftp_vars). The optional SFTP_BACKUP_* trio is
+	// all-or-nothing, checked in the deployer.
+	{"SFTP_FQDN", []string{"sftp"}, []func(string) error{checkFQDN}},
+	{"SFTP_PORT", []string{"sftp"}, []func(string) error{checkPort}},
+	{"SFTP_ADMIN_PORT", []string{"sftp"}, []func(string) error{checkPort}},
+	{"SFTP_ADMIN_USER", []string{"sftp"}, nil},
+	{"SFTP_ADMIN_PASSWORD", []string{"sftp"}, []func(string) error{checkNotPlaceholder}},
+	{"SFTP_DATA_DIR", []string{"sftp"}, []func(string) error{checkAbsPath}},
+	{"SFTP_HOME_DIR", []string{"sftp"}, []func(string) error{checkAbsPath}},
+	{"SFTP_CERT_DIR", []string{"sftp"}, []func(string) error{checkAbsPath}},
+	{"SFTPGO_IMAGE", []string{"sftp"}, []func(string) error{checkImage}},
+
 	// SeaweedFS S3 (require_s3_vars).
 	{"S3_FQDN", []string{"s3"}, []func(string) error{checkFQDN}},
 	{"S3_PORT", []string{"s3"}, []func(string) error{checkPort}},

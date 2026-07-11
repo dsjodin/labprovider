@@ -79,6 +79,50 @@ var testEnv = map[string]string{
 	"DNS_SYNC_BUILTIN_RECORDS":           "provider-box.sddc.lab=192.168.12.121",
 	"DNS_SYNC_SECRETS_DIR":               "/opt/provider-box/dns-sync/secrets",
 	"DNS_SYNC_TECHNITIUM_DASHBOARD_USER": "dashboard",
+
+	"DEPOT_FQDN":       "vcfdepot.sddc.lab",
+	"DEPOT_HTTP_PORT":  "80",
+	"DEPOT_HTTPS_PORT": "443",
+	"DEPOT_DATA_DIR":   "/opt/provider-box/depot/data",
+	"DEPOT_CERT_DIR":   "/opt/provider-box/depot/certs",
+	"DEPOT_AUTH_DIR":   "/opt/provider-box/depot/auth",
+	"DEPOT_IMAGE":      "docker.io/library/nginx:1.31-alpine",
+
+	"KEYCLOAK_IMAGE":          "quay.io/keycloak/keycloak:26.6.3",
+	"KEYCLOAK_DIR":            "/opt/provider-box/keycloak",
+	"KEYCLOAK_FQDN":           "auth.sddc.lab",
+	"KEYCLOAK_PORT":           "8443",
+	"KEYCLOAK_ADMIN_USER":     "admin",
+	"KEYCLOAK_ADMIN_PASSWORD": "kcadmin",
+
+	"AUTHENTIK_IMAGE":                    "ghcr.io/goauthentik/server:2026.5.3",
+	"AUTHENTIK_POSTGRES_IMAGE":           "docker.io/library/postgres:16-alpine",
+	"AUTHENTIK_DIR":                      "/opt/provider-box/authentik",
+	"AUTHENTIK_FQDN":                     "idp.sddc.lab",
+	"AUTHENTIK_PORT":                     "9443",
+	"AUTHENTIK_SECRET_KEY":               "aksecret",
+	"AUTHENTIK_PG_DB":                    "authentik",
+	"AUTHENTIK_PG_USER":                  "authentik",
+	"AUTHENTIK_PG_PASSWORD":              "akpg",
+	"AUTHENTIK_ADMIN_PASSWORD":           "akadmin",
+	"AUTHENTIK_API_TOKEN":                "aktoken",
+	"AUTHENTIK_BOOTSTRAP_GROUP_NAME":     "vcf-admins",
+	"AUTHENTIK_BOOTSTRAP_USERNAME":       "lab-admin",
+	"AUTHENTIK_BOOTSTRAP_USER_PASSWORD":  "akuser",
+	"AUTHENTIK_BOOTSTRAP_USER_EMAIL_DOMAIN": "sddc.lab",
+	"AUTHENTIK_BOOTSTRAP_CLIENT_ID":      "vcf-sso",
+	"AUTHENTIK_BOOTSTRAP_CLIENT_SECRET":  "akclient",
+	"AUTHENTIK_BOOTSTRAP_CLIENT_REDIRECT_URIS_BLOCK": "        - matching_mode: strict\n          url: \"https://vc.sddc.lab/oauth2\"",
+
+	"SFTPGO_IMAGE":        "docker.io/drakkan/sftpgo:v2.7.3",
+	"SFTP_FQDN":           "sftp.sddc.lab",
+	"SFTP_PORT":           "2022",
+	"SFTP_ADMIN_PORT":     "8080",
+	"SFTP_ADMIN_USER":     "admin",
+	"SFTP_ADMIN_PASSWORD": "sftppw",
+	"SFTP_DATA_DIR":       "/opt/provider-box/sftpgo/data",
+	"SFTP_HOME_DIR":       "/opt/provider-box/sftpgo/home",
+	"SFTP_CERT_DIR":       "/opt/provider-box/sftpgo/certs",
 }
 
 // TestRenderGolden is the template parity harness: each converted template is
@@ -97,6 +141,12 @@ func TestRenderGolden(t *testing.T) {
 		"docker-compose.netbox.yml.tpl",
 		"netbox-nginx.conf.tpl",
 		"docker-compose.dns-sync.yml.tpl",
+		"docker-compose.depot.yml.tpl",
+		"depot-nginx.conf.tpl",
+		"docker-compose.keycloak.yml.tpl",
+		"docker-compose.authentik.yml.tpl",
+		"authentik-blueprint.yaml.tpl",
+		"docker-compose.sftpgo.yml.tpl",
 	} {
 		t.Run(name, func(t *testing.T) {
 			dest := filepath.Join(t.TempDir(), "out")

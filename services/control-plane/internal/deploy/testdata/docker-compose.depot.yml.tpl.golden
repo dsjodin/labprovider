@@ -1,0 +1,12 @@
+services:
+  depot:
+    image: docker.io/library/nginx:1.31-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/provider-box/runtime/depot/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /opt/provider-box/depot/data:/usr/share/nginx/html:ro
+      - /opt/provider-box/depot/certs:/etc/provider-box/certs:ro
+      - /opt/provider-box/depot/auth:/etc/nginx/auth:ro
