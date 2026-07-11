@@ -1,24 +1,67 @@
 # Provider Box
 
-Provider Box is a lightweight, single-node bootstrap framework for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
+Provider Box is a lightweight, single-node platform for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
 
-It is designed for lab and proof-of-concept environments, especially VMware Cloud Foundation (VCF). It includes bootstrap support for:
+It is designed for lab and proof-of-concept environments, especially VMware Cloud Foundation (VCF). Services (all containerized via Docker Compose):
 
-- DNS via Technitium (containerized, NetBox-driven)
+- DNS via Technitium (NetBox-driven)
 - dns-sync for reconciling NetBox IPAM records into Technitium
 - Chrony for NTP
 - rsyslog for centralized syslog collection
-- step-ca for a lightweight private certificate authority
+- step-ca for a lightweight private certificate authority (dedicated PostgreSQL backend)
 - VCF offline depot served by nginx
 - Keycloak for identity
 - Authentik for identity federation with OIDC and outbound SCIM 2.0 provisioning
 - NetBox for IPAM, DCIM, and infrastructure source-of-truth
 - SeaweedFS for S3-compatible object storage
 - SFTPGo for SFTP file transfer
+- The Provider Box control plane: a web UI with a configuration wizard, service selection + deployment with live progress, and a read-only dashboard of everything above
 
-The repository is intentionally simple: copy the example configuration, update values for your environment, and run the bootstrap script for the services you need.
+## Provider Box v2: the control plane
 
-`bootstrap/provider-box.sh` is the entrypoint. It loads service-specific modules from `bootstrap/ntp.sh`, `bootstrap/rsyslog.sh`, `bootstrap/ca.sh`, `bootstrap/depot.sh`, `bootstrap/keycloak.sh`, `bootstrap/authentik.sh`, `bootstrap/netbox.sh`, `bootstrap/s3.sh`, `bootstrap/sftp.sh`, `bootstrap/technitium.sh`, and `bootstrap/dns-sync.sh`.
+The control plane is the primary way to run Provider Box. One script installs it; everything else happens in the browser:
+
+```bash
+git clone https://github.com/dsjodin/provider-box.git
+cd provider-box
+sudo bash install.sh
+```
+
+`install.sh` installs Docker if absent (Debian and Ubuntu), does the one-time host preparation (disables the systemd-resolved stub listener so Technitium can own port 53, disables systemd-timesyncd because chrony runs containerized), builds the control-plane image from the checkout, and starts it. It prints the UI URL when done (port 8445 by default).
+
+Then, in the UI:
+
+1. **`/config`** - edit or paste `provider-box.env` (or download it, fill it out locally, and paste it back), validate (every problem is reported at once, per variable), and save. Optional external DNS records (`dns.seed`) are managed on the same page.
+2. **`/deploy`** - tick the services you want (dependencies are added automatically), press Deploy, and watch the live log. "Select all" deploys the full catalog in dependency order: chrony, rsyslog, ca, technitium, depot, keycloak, authentik, netbox, s3, sftp, dns-sync.
+3. **`/`** - the dashboard: certificates (step-ca), DNS zones (Technitium), IPAM (NetBox), container state, and recent errors at a glance.
+
+After the CA is deployed the control plane issues its own certificate; restart the container (`docker restart provider-box-control-plane`) to serve the UI over HTTPS.
+
+**The UI has no authentication (v1).** Run it on a trusted lab network only.
+
+### Required open ports
+
+`install.sh` and the control plane do not manage the firewall. If the host runs ufw or similar, open the service ports you deploy:
+
+| Service | Ports |
+|---------|-------|
+| Control plane UI | 8445/tcp |
+| Technitium DNS | 53/tcp+udp, 5380/tcp, 53443/tcp |
+| Chrony | 123/udp |
+| rsyslog | 514/tcp+udp (SYSLOG_PORT) |
+| step-ca | 9000/tcp |
+| Depot | 80/tcp, 443/tcp |
+| Keycloak | 8443/tcp |
+| Authentik | 9443/tcp |
+| NetBox | 8444/tcp |
+| S3 | 8333/tcp |
+| SFTPGo | 2022/tcp, 8080/tcp |
+
+Ports are the example-config defaults; adjust to your values.
+
+## Transitional: the bash bootstrap
+
+The original bash bootstrap (`bootstrap/provider-box.sh` plus per-service modules) still works and is documented below. It deploys chrony and rsyslog as host-native systemd services (the control plane runs them containerized) and does not deploy the containerized chrony/rsyslog or the control-plane engine features. It will be removed once the control-plane path has proven parity; new deployments should use `install.sh`.
 
 ## Overview
 

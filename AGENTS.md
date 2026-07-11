@@ -4,7 +4,7 @@ Agents must also review PROJECT_CONTEXT.md to understand architectural boundarie
 
 ## Purpose
 
-This repository implements "Provider Box": a lightweight, single-node bootstrap framework for shared infrastructure services used in lab and PoC environments, especially VMware Cloud Foundation (VCF).
+This repository implements "Provider Box": a single-node platform of shared infrastructure services for lab and PoC environments, especially VMware Cloud Foundation (VCF). All services run as Docker Compose stacks, deployed by a Go control plane (`services/control-plane`) that serves a web UI: configuration wizard, service selection + deployment with live progress, and a read-only dashboard.
 
 Agents must preserve:
 - simplicity
@@ -18,12 +18,23 @@ Agents must preserve:
 ## Core Principles
 
 - Single-node, lab-oriented design only
-- Explicit shell logic over abstraction
-- Template-driven configuration
-- Fail fast on invalid input
+- Explicit Go deployers over abstraction; one file per service under `services/control-plane/internal/deploy/`
+- Template-driven configuration (Go text/template, embedded in the binary, `missingkey=error`)
+- Fail fast on invalid input; the wizard reports every validation finding at once
 - Keep implementations simple and easily understandable
 - Prefer reproducibility over flexibility or convenience
 - This repository provides infrastructure primitives only, not user-facing application platforms
+
+---
+
+## Architecture (v2)
+
+- `install.sh` is the only shell: Docker install, one-time host prep (systemd-resolved stub listener, systemd-timesyncd), control-plane image build + run. Everything else is Go.
+- The control plane runs as a root, host-networked, non-privileged container with the docker socket, `/opt/provider-box`, and `/host/etc` mounted. It execs the bundled docker CLI (compose v2) against the host daemon.
+- The deploy engine (`internal/deploy`) is a static registry of services with explicit dependencies, executed sequentially in dependency order, single-flight, streaming progress over SSE.
+- Configuration is the single flat `provider-box.env`, managed at `/opt/provider-box/control-plane/provider-box.env` by the wizard; the shipped example (`config/provider-box.env.example`) is the schema source of truth and completeness reference. Validation lives in `internal/envfile/schema.go` - one table entry per variable with its validator and the services that require it.
+- Docker is the source of truth for what is running; `state.json` is advisory deploy history only.
+- The transitional bash bootstrap (`bootstrap/`, `templates/`) still exists until the control-plane path proves parity end-to-end; do not add features to it.
 
 ---
 
@@ -32,231 +43,90 @@ Agents must preserve:
 - Keep diffs tightly scoped
 - Do not refactor unrelated services
 - Extend existing patterns, do not invent new ones
-- Maintain consistency across all services
+- Maintain consistency across all deployers
 
 ---
 
-## Repository Patterns
+## Adding or Changing a Service
 
-### Bootstrap Flow (All Services)
+Every deployer must follow this structure (see any file in `internal/deploy/`):
 
-Every service must follow this structure:
+1. Cross-field validation the schema table cannot express
+2. `requireCAReady` when the service consumes a step-ca certificate
+3. Directory creation with explicit modes/ownership (`EnsureDir`, `chownR`)
+4. Certificate issuance via `IssueCert` (identity-based reuse, full-chain guarantee)
+5. Template render (embedded, Go template syntax)
+6. `docker compose down` + `up` via the `Compose` runner
+7. Readiness verification against the user-facing endpoint (`WaitHTTPSPinned`, `WaitTCP`, DNS probes) - external usability, not internal health endpoints
+8. API seeding / token provisioning, idempotent with validity-probe reuse
+9. `Remove` with the same data-preservation semantics: runtime files removed, persistent data preserved
 
-1. Validation (service-specific)
-2. Directory creation
-3. Template rendering
-4. Service startup
-5. Basic verification / output
-
-Do not deviate from this model.
-
----
-
-### Environment Model
-
-- All configuration comes from `config/provider-box.env`
-- Example values in `provider-box.env.example`
-- No hardcoded environment values in scripts
-- Validate before use
+Also required:
+- Add the service's variables to `internal/envfile/schema.go`
+- Add a golden render test for any new template (`UPDATE_GOLDEN=1 go test ./internal/deploy/ -run TestRenderGolden` regenerates)
+- Register the deployer in `cmd/control-plane/main.go` in dependency order
 
 ---
 
-## Existing Services – Rules
+## Environment Model
 
-The following services already exist and are considered **stable**:
-
-- Unbound (DNS)
-- Chrony (NTP)
-- rsyslog
-- step-ca
-- Keycloak
-- SeaweedFS (S3)
-- SFTPGo
-
-### Modification Rules
-
-- Do not change behavior of existing services unless explicitly required
-- Do not refactor existing service modules for style or consistency alone
-- Do not introduce new dependencies into existing services
-- Do not change existing configuration variables or naming
-- Do not alter service exposure (ports, protocols, etc.)
-
-### Allowed Changes
-
-- Bug fixes
-- Minimal adjustments required for new service integration
-- Shared helper improvements (if they do not break existing behavior)
-
-### DNS Integration
-
-All services must:
-
-- Have an FQDN defined in `provider-box.env`
-- Be included in the generated DNS block
-- Be resolvable via Unbound
+- All configuration comes from the managed `provider-box.env`
+- Example values (and the completeness reference) in `config/provider-box.env.example`
+- No hardcoded environment values in deployers
+- Container images are pinned centrally in the env file; never `latest`
+- Reject empty values, invalid FQDNs/IPs/CIDRs/ports/paths, and `CHANGE_ME` placeholders
 
 ---
 
-### Canonical Host Identity
+## DNS Integration
 
-- `PROVIDER_BOX_FQDN` defines the canonical host identity for the Provider Box node
-- All built-in service FQDNs resolve to the same host IP
-- Reverse PTR records for the Provider Box host IP must point to `PROVIDER_BOX_FQDN`
-- Service FQDNs must not be used as PTR targets
-- The Provider Box host IP must always have exactly one canonical IP object in NetBox
+- Technitium is the only DNS backend; NetBox is the source of truth, reconciled by dns-sync
+- Every service has an FQDN in `provider-box.env` and appears in `builtinServiceFQDNs` (netbox.go) so dns-sync publishes it
+- `PROVIDER_BOX_FQDN` is the canonical host identity and the sole reverse PTR target for the host IP
+- The canonical host IP object in NetBox is created explicitly from `HOST_IP`, never from record imports; built-in service FQDNs live in its description
+- External/custom records come only from the managed `dns.seed`
 
 ---
 
 ## IP Address Modeling
 
-- `HOST_IP` must use CIDR notation (e.g. `192.168.12.121/24`)
-- The raw IPv4 address must be derived when needed for services
-- CIDR information must be preserved when available
-
-### DNS Records
-
-- Records may use:
-  - `<fqdn> <ip>`
-  - `<fqdn> <ip/cidr>`
-
-Plain IP values are treated as host addresses and will be imported as `/32` in NetBox.
-
-- If CIDR is present:
-  - The subnet must be derived
-
-- If CIDR is not present:
-  - The address must be treated as `/32`
-  - No subnet assumptions are allowed
-
----
-
-## Validation Rules
-
-- Validation must be service-scoped
-- Do not require config for unrelated services
-- Reject:
-  - empty values
-  - invalid FQDNs, IPs, CIDRs
-  - placeholder values (`CHANGE_ME`)
-- Fail fast with clear messages
+- `HOST_IP` uses CIDR notation (e.g. `192.168.12.121/24`)
+- When CIDR is present, derive and create the surrounding prefix object; plain IPs import as `/32` with no subnet assumptions
+- One NetBox IP object per unique address; re-runs never overwrite an existing object's canonical dns_name
+- All NetBox seeding must remain idempotent
 
 ---
 
 ## Filesystem Rules
 
-- Never assume global writable paths (e.g. `/out`, `/tmp` for persistent data)
-- Always use managed directories:
-  - `${WORKDIR}`
-  - `${SERVICE_DIR}`
-- Create directories explicitly
-- Ensure correct permissions before use
+- Persistent service data under `/opt/provider-box/<service>`; runtime-generated files under `${WORKDIR}` (default `/opt/provider-box/runtime/<service>`)
+- Never assume global writable paths; create directories explicitly with correct permissions before use
+- Secrets are files with mode 0600 and explicit ownership (uid 1000 for container consumers)
 
 ---
 
 ## Docker / Compose Rules
 
-- Use `docker compose`
-- Use explicit image tags (never `latest`)
-- Use bind mounts for persistence
-- Keep stacks self-contained per service
-- Do not introduce orchestration layers
-- All container images must be sourced from `provider-box.env`
-- Do not define image versions inside templates or scripts
+- Use `docker compose` via the engine's `Compose` runner
+- Explicit image tags (never `latest`), sourced from `provider-box.env`
+- Bind mounts for persistence; stacks self-contained per service
+- No orchestration layers, no Kubernetes
+- Locally built images (chrony, rsyslog, dns-sync) build from embedded or image-baked sources; no registry needed
 
 ---
 
 ## TLS / Certificate Rules
 
-- Reuse step-ca integration patterns
-- Store certs under service-specific directories
-- Do not write certs to global paths
-- Keep certificate handling consistent across services
-
----
-
-## NetBox-Specific Rules
-
-- Must follow all general service rules
-- Must include:
-  - NetBox
-  - PostgreSQL
-  - Redis
-- Must remain single-node
-
-NetBox requires step-ca for certificate issuance in the current Provider Box design.
-This is an intentional bootstrap dependency, not an accidental runtime coupling.
-
-### IPAM Seeding Model
-
-- Create one IP address object per unique address (including mask)
-- Do not create duplicate IP objects for multiple FQDNs pointing to the same address
-
-- The canonical Provider Box host IP must not be created from DNS record imports
-- It must be created explicitly using `HOST_IP` and `PROVIDER_BOX_FQDN`
-
-- Use:
-  - `PROVIDER_BOX_FQDN` as the canonical dns_name for the host IP
-  - Built-in service FQDNs must be stored in the IP object description as generated metadata
-
-- When CIDR is available:
-  - Use the provided mask for the IP address object
-  - Create the corresponding prefix object
-  - When CIDR information is available, a corresponding prefix object must be created in NetBox
-
-- When CIDR is not available:
-  - Use `/32` for the IP address object
-  - Do not infer or guess prefixes
-
-- All NetBox seeding must remain idempotent
-
-### Configuration
-
-- Enforce strong `NETBOX_SECRET_KEY` (>= 50 chars)
-- Reject placeholder credentials
-- Use explicit image tag
-
-### Filesystem
-
-- All data under `${NETBOX_DIR}`
-- Certificates under `${NETBOX_DIR}/certs`
-- Never use `/out`
-
-### Seeding (if implemented)
-
-- Use NetBox API only
-- Import:
-  - Provider Box service endpoints
-  - DNS records from `config/unbound.records`
-- Keep model simple
-- Ensure idempotency
+- step-ca is the internal CA; every HTTPS service uses a step-ca-issued certificate
+- Issue via `IssueCert`; certs live under service-specific directories
+- Certificate issuance is DNS-independent: every consumer pins `CA_FQDN` to `127.0.0.1` (single-node assumption)
+- Postgres data dirs are never nested under a dir that gets a uid-1000 recursive chown
 
 ---
 
 ## Service Independence
 
-Unless a dependency is already intentional and documented, services must remain independently deployable.
-
-Examples:
-- NetBox must not require Unbound
-- Unbound must not require NetBox
-
-Cross-service integrations must be additive, not mandatory.
-
-### Cross-Service Behavior
-
-- NetBox seeding must not require Unbound to be deployed
-- Unbound configuration must not depend on NetBox
-- Shared configuration (e.g. DNS records) must be usable independently by each service
-- NetBox must not depend on Unbound-generated DNS blocks for its data model
-
----
-
-## Implementation Guidelines
-
-- Read existing modules before writing new ones
-- Match naming and structure
-- Keep functions small and readable
-- Avoid introducing new languages
+Unless a dependency is explicit in the deployer's `Deps()`, services must remain independently deployable. Cross-service integrations must be additive: token provisioning for a consumer is skipped with a notice when the consumer's directory variable is unset.
 
 ---
 
@@ -265,10 +135,11 @@ Cross-service integrations must be additive, not mandatory.
 - No Kubernetes
 - No HA / clustering
 - No production-grade patterns
-- No reverse proxies unless already established
+- No new reverse proxies
 - No silent error handling
 - No floating versions
-- No user-facing application platforms (e.g. CI/CD systems, note-taking tools, general-purpose apps)
+- No user-facing application platforms
+- No new features in the transitional bash bootstrap
 
 ---
 
@@ -276,11 +147,10 @@ Cross-service integrations must be additive, not mandatory.
 
 After changes:
 
-1. Run service bootstrap
-2. Verify containers/services
-3. Verify DNS resolution
-4. Check expected files exist
-5. Re-run bootstrap (idempotency check where applicable)
+1. `cd services/control-plane && go build ./... && go vet ./... && go test ./...`
+2. On a lab host: `sudo bash install.sh`, deploy the affected service from the UI, verify its endpoint
+3. Re-deploy to confirm idempotency (cert/token reuse, no data loss)
+4. Remove + redeploy to confirm the data-preservation contract
 
 ---
 
@@ -298,13 +168,13 @@ After changes:
 If unsure:
 
 - Choose the simplest solution
-- Stay consistent with existing services
+- Stay consistent with existing deployers
 - Do not change working behavior
 
 ---
 
 ## Idempotency
 
-- Service bootstrap operations must be idempotent where feasible
-- Re-running a bootstrap must not overwrite or destroy existing state unless explicitly intended
-- Existing resources (e.g. users, data, certificates) must be preserved when present
+- Deploy operations must be idempotent where feasible
+- Re-running a deploy must not overwrite or destroy existing state unless explicitly intended
+- Existing resources (users, data, certificates, tokens) must be preserved when present and still valid

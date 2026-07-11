@@ -11,9 +11,9 @@ This document complements `AGENTS.md`, which defines implementation rules and co
 
 ## Overview
 
-Provider Box is a small, opinionated infrastructure bootstrap project for lab and proof-of-concept environments.
+Provider Box is a small, opinionated infrastructure platform for lab and proof-of-concept environments.
 
-It provides a single-node infrastructure services layer supporting VMware Cloud Foundation (VCF) and similar platforms.
+It provides a single-node infrastructure services layer supporting VMware Cloud Foundation (VCF) and similar platforms, deployed and observed through a web control plane.
 
 The focus is on:
 - simplicity
@@ -33,34 +33,29 @@ Provider Box is intentionally constrained:
 - Reproducible from scratch
 - Minimal moving parts
 
-This is a bootstrap layer, not a full platform.
+This is an infrastructure services layer, not a full platform.
 
 ---
 
-## Runtime Model
+## Runtime Model (v2)
 
-Mixed execution model:
+Everything is containerized:
 
-| Type              | Implementation        |
-|------------------|----------------------|
-| System services  | Native (systemd)     |
-| Application services | Docker Compose  |
+| Component | Implementation |
+|-----------|----------------|
+| All services | Docker Compose stacks |
+| Control plane | Go binary in a container (root, host network, docker socket + `/opt/provider-box` + `/host/etc` mounted) |
+| Host footprint | Docker plus two one-time systemd tweaks done by `install.sh` |
 
-No clustering or orchestration.
+No clustering or orchestration. The transitional bash bootstrap still deploys chrony/rsyslog natively; it is scheduled for removal.
 
 ---
 
 ## Service Model
 
-Each service is:
-
-- deployed individually:
-  sudo bash bootstrap/provider-box.sh --<service>
-
-- removed individually:
-  sudo bash bootstrap/provider-box.sh --<service> --remove
-
-Loose coupling with explicit dependencies (e.g. step-ca).
+- `install.sh` starts the control plane; services are deployed and removed from the web UI (or its HTTP API)
+- The deploy engine is a static registry with explicit dependencies, executed sequentially in dependency order, single-flight
+- Removal stops containers and deletes runtime files; persistent data is always preserved
 
 ---
 
@@ -68,24 +63,19 @@ Loose coupling with explicit dependencies (e.g. step-ca).
 
 ### Infrastructure
 
-- Unbound (DNS)
-- Chrony (NTP)
-- rsyslog (logging)
+- Technitium (DNS; NetBox-driven via dns-sync)
+- Chrony (NTP, containerized, SYS_TIME only)
+- rsyslog (logging, containerized)
 
 ### Security & Identity
 
-- step-ca (internal CA)
-- Keycloak (OIDC identity provider)
-
-Keycloak bootstrap includes:
-- one opinionated realm (VCF-oriented)
-- one group
-- one OIDC client (VCF SSO)
-- one bootstrap user (lab-admin)
+- step-ca (internal CA, dedicated PostgreSQL backend, CRL enabled)
+- Keycloak (OIDC identity provider; opinionated VCF realm import)
+- Authentik (OIDC + outbound SCIM 2.0 for VCF 9 identity federation; runs in parallel with Keycloak, federate against one)
 
 ### Source of Truth
 
-- NetBox (IPAM / DCIM)
+- NetBox (IPAM / DCIM); dns-sync reconciles it into Technitium continuously
 
 ### Storage & Transfer
 
@@ -94,166 +84,81 @@ Keycloak bootstrap includes:
 
 ### VCF Integration
 
-- VCF Offline Depot (nginx)
+- VCF Offline Depot (nginx, basic-auth protected paths)
 
----
+### Control Plane
 
-## Depot Model
-
-Nginx-based service serving VCF binaries.
-
-### Structure
-
-/PROD/metadata/
-/PROD/COMP/
-/PROD/vsan/hcl/
-
-### Access Control
-
-| Path                     | Auth |
-|--------------------------|------|
-| /healthz                | No   |
-| /products/v1/bundles/all| No   |
-| /PROD/vsan/hcl/         | No   |
-| /PROD/metadata/         | Yes  |
-| /PROD/COMP/             | Yes  |
-
-Directory listing disabled.
+- `services/control-plane`: config wizard, deploy engine with SSE progress, read-only dashboard (certificates, DNS, IPAM, containers, recent errors)
+- No UI authentication in v1: trusted lab networks only
 
 ---
 
 ## Configuration Model
 
-Single source of truth:
-
-config/provider-box.env
+Single source of truth: `provider-box.env`, managed by the wizard at `/opt/provider-box/control-plane/provider-box.env`.
 
 Principles:
-- explicit values
-- no implicit defaults
-- service-driven configuration
-
----
+- explicit values, no implicit defaults
+- strict per-service validation from one schema table
+- the shipped example is the completeness reference; deploys refuse an outdated config
+- external DNS records in the managed `dns.seed` (optional)
 
 ## Container Image Model
 
-All images are centrally defined:
-
-CA_IMAGE=...
-KEYCLOAK_IMAGE=...
-NETBOX_IMAGE=...
-NETBOX_POSTGRES_IMAGE=...
-NETBOX_REDIS_IMAGE=...
-NETBOX_NGINX_IMAGE=...
-S3_IMAGE=...
-SFTPGO_IMAGE=...
-DEPOT_IMAGE=...
-
-Provides a central control plane for all container image versions used by Provider Box.
-All containerized services must source their image from `provider-box.env`.
+All images are pinned centrally in `provider-box.env` (`*_IMAGE` variables). Locally built images (`provider-box/control-plane`, `provider-box/chrony`, `provider-box/rsyslog`, `provider-box/dns-sync`) build from the checkout or from sources baked into the control-plane image; no registry access is needed at deploy time.
 
 ---
 
 ## Certificate Model
 
-- step-ca is the internal CA
-- all HTTPS services use step-ca certificates
-- certificates stored locally per service
-- mounted into containers
-- trust via root CA
+- step-ca is the internal CA; all HTTPS services use step-ca certificates
+- issuance goes through the shared `IssueCert` helper: identity-based reuse, full-chain guarantee, uid-1000 ownership
+- every consumer pins `CA_FQDN` to `127.0.0.1`, so certificates can be issued before DNS exists (single-node assumption)
+- the control plane issues its own leaf after the CA deploys and serves HTTPS after a restart
 
 ---
 
 ## Template Model
 
-- simple env-based templating
-- templates rendered before service startup
-
-Important:
-- environment variables are substituted
-- runtime variables (e.g. nginx $uri) must be preserved explicitly (e.g. via escaping)
+- Go text/template, embedded in the control-plane binary
+- `missingkey=error`: a reference to an unset variable fails the render
+- nginx runtime variables (`$uri`, `$host`) need no escaping
+- golden render tests pin every template's output
 
 ---
 
 ## Directory Model
 
-Persistent service data defaults to:
-
-/opt/provider-box/<service>
-
-Examples:
-- /opt/provider-box/step-ca
-- /opt/provider-box/depot
-- /opt/provider-box/keycloak
-- /opt/provider-box/netbox
-
-Runtime files
-
-Runtime-generated files are written to:
-
-/opt/provider-box/runtime/<service>
-
-This directory is managed by Provider Box and is separate from both the repository location and persistent service data.
-
-Examples:
-- /opt/provider-box/runtime/depot
-- /opt/provider-box/runtime/step-ca
-
-### Path changes
-
-Default persistent service paths now live under `/opt/provider-box`.
-Default runtime-generated files now live under `/opt/provider-box/runtime`.
-
-Existing installations using the previous `/opt/<service>` layout are not migrated automatically. Path changes must be handled manually or by updating `provider-box.env`.
+- Persistent service data: `/opt/provider-box/<service>`
+- Runtime-generated files: `${WORKDIR}` (default `/opt/provider-box/runtime/<service>`)
+- Control plane state: `/opt/provider-box/control-plane/` (managed config, dns.seed, state.json, certs, secrets)
 
 ---
 
 ## Removal Semantics
 
---remove:
-
+Remove (per service, from the UI):
 - stops containers
 - removes runtime files
-- preserves persistent data
-
-Example:
-- keeps /opt/provider-box/depot/data
-- removes the corresponding runtime directory (e.g. /opt/provider-box/runtime/depot by default)
+- preserves persistent data, certificates, and operator secrets
 
 ---
 
 ## Security Model (Lab)
 
-- basic auth for depot
-- credentials stored locally
-- pragmatic permissions
-
-Focus:
-usability over production-grade hardening
+- basic auth for depot; per-service admin credentials from the env file
+- scoped read-only tokens for the dashboard panels, auto-provisioned by the producing deployers; operator-placed (SOPS/age) tokens win
+- pragmatic permissions; usability over production-grade hardening
+- the control plane UI itself has no auth (v1) - trusted lab network only
 
 ---
 
 ## Operational Constraints
 
-- Services are started sequentially, not dependency-aware
-- Readiness checks validate service availability after startup
-- A container being "started" does not imply readiness
-- Operators may need to re-run individual services if dependencies were not yet available
-
-### Readiness Model
-
-Provider Box uses service-specific readiness checks to verify that services are reachable on their user-facing interfaces.
-
-- Readiness checks probe the externally exposed HTTPS endpoints
-- Internal health endpoints (e.g. `/health`) are not used for readiness
-- Redirect responses (e.g. 301/302) are considered valid readiness signals
-- A container being "started" does not imply readiness
-
-This ensures that services are validated based on actual usability rather than internal health mechanisms.
-
-### Idempotency
-
-Service bootstrap operations are designed to be idempotent where possible. Re-running a service bootstrap should not overwrite existing state unless explicitly intended.
+- Deploys are sequential and dependency-ordered; one deploy runs at a time
+- Readiness checks probe externally exposed endpoints (a started container does not imply readiness)
+- Docker is the source of truth for running state; state.json is advisory history
+- The control plane never redeploys itself; upgrade by re-running `install.sh`
 
 ---
 
@@ -284,7 +189,7 @@ Changes should:
 - follow existing patterns
 - be explicit and readable
 - avoid unnecessary abstraction
-- avoid implicit behavior (e.g. hidden migrations or automatic state changes)
+- avoid implicit behavior
 - prefer external readiness checks over internal health probes
 
 ---
@@ -293,4 +198,4 @@ Changes should:
 
 Provider Box is:
 
-A minimal, reproducible, single-node infrastructure platform for lab environments, prioritizing clarity, simplicity, and controlled dependencies.
+A minimal, reproducible, single-node infrastructure platform for lab environments — fully containerized, driven by a web control plane, prioritizing clarity, simplicity, and controlled dependencies.

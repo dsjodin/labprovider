@@ -10,7 +10,7 @@ blast radius.
 
 ---
 
-## 1. Technitium bootstrap uses hardcoded first-boot admin credentials
+## 1. Technitium bootstrap uses hardcoded first-boot admin credentials (RESOLVED in the control-plane path)
 
 - What: All bootstrap-phase Technitium API calls authenticate with the
   literal first-boot credentials `admin`/`admin`, and the admin password is
@@ -30,7 +30,7 @@ blast radius.
   and validation; changes re-run behavior on hosts where the password was
   already changed manually.
 
-## 2. --netbox leaks one live superuser API token per run
+## 2. --netbox leaks one live superuser API token per run (RESOLVED in the control-plane path)
 
 - What: `netbox_api_auth_header` provisions a fresh superuser token on every
   `--netbox` run for the seeding calls and never deletes it afterwards.
@@ -60,7 +60,7 @@ blast radius.
   probably over-engineering for the lab scope.
 - Blast radius: Small. One function in `netbox.sh`.
 
-## 4. docker_pkgs Docker CE fallback hardcodes the Debian repo
+## 4. docker_pkgs Docker CE fallback hardcodes the Debian repo (RESOLVED in install.sh)
 
 - What: The Docker CE install path always uses
   `https://download.docker.com/linux/debian` with the host's
@@ -201,7 +201,7 @@ blast radius.
   pinned image first.
 - Blast radius: Small. Local-only exposure today; two functions.
 
-## 13. AGENTS.md is stale (not edited by this pass by instruction)
+## 13. AGENTS.md is stale (RESOLVED: rewritten to the v2 control-plane model)
 
 - What: The agent rules predate Authentik, Technitium, dns-sync, and the
   DNS backend model.
@@ -219,7 +219,7 @@ blast radius.
   section.
 - Blast radius: Documentation only.
 
-## 14. PROJECT_CONTEXT.md is stale (not edited by this pass by instruction)
+## 14. PROJECT_CONTEXT.md is stale (RESOLVED: rewritten to the v2 control-plane model)
 
 - What: Core components and the container image list predate Authentik,
   Technitium, and dns-sync.

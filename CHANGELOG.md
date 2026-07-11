@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-11 (v2 documentation: control plane is the primary path)
+
+### Changes
+- README leads with the v2 flow: `sudo bash install.sh`, then the web UI (`/config` wizard, `/deploy` with live progress, `/` dashboard). A required-open-ports table replaces the bootstrap's best-effort `ufw allow` calls. The bash bootstrap docs remain below under an explicit "Transitional" heading; the bash path is scheduled for removal once the control-plane path has proven parity end-to-end on a fresh host.
+- AGENTS.md and PROJECT_CONTEXT.md are rewritten to the v2 model (closing IMPROVEMENTS #13/#14): fully containerized services, Go deployers under `services/control-plane/internal/deploy/`, the schema-table validation model, the deployer structure contract, and the updated filesystem/DNS/TLS rules.
+- IMPROVEMENTS #1, #2 (fixed in the Go deployers) and #4 (fixed in install.sh) are marked resolved.
+
+Remaining before the bash deletion (the final v2 step): end-to-end verification on a fresh Debian/Ubuntu host - install.sh, wizard, deploy all, the README checks - then delete `bootstrap/` and the legacy `templates/` directory.
+
+---
+
 ## 2026-07-11 (control plane deploys depot, keycloak, authentik, sftpgo)
 
 ### Features
