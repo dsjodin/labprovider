@@ -1,0 +1,17 @@
+services:
+  seaweedfs-s3:
+    image: docker.io/chrislusf/seaweedfs:4.31
+    restart: unless-stopped
+    environment:
+      AWS_ACCESS_KEY_ID: "ak"
+      AWS_SECRET_ACCESS_KEY: "sk"
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -ip.bind=0.0.0.0
+      - -s3.port=8333
+    ports:
+      - "8333:8333"
+    volumes:
+      - /opt/provider-box/seaweedfs:/data

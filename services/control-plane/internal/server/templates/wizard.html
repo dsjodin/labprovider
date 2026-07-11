@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provider Box - Configuration</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a2029; --border: #2b333f; --fg: #d7dde5;
+    --muted: #8b95a3; --accent: #4a9eda; --ok: #3fb56a; --warn: #d99a30;
+    --bad: #d9534f; --chip: #232b36;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 18px; }
+  header nav a { color: var(--accent); text-decoration: none; margin-right: 14px; font-size: 13px; }
+  main { padding: 24px; max-width: 1100px; }
+  textarea { width: 100%; height: 60vh; background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .actions { margin: 12px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+  button, a.btn { background: var(--chip); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; text-decoration: none; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #08111a; font-weight: 600; }
+  #status { font-size: 13px; margin: 8px 0; }
+  #status.ok { color: var(--ok); }
+  #status.bad { color: var(--bad); }
+  ul.issues { margin: 8px 0; padding-left: 18px; font-size: 13px; }
+  ul.issues li { margin: 2px 0; }
+  ul.issues .var { color: var(--warn); font-family: ui-monospace, Menlo, monospace; }
+  .note { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Provider Box &mdash; Configuration</h1>
+  <nav><a href="/">Dashboard</a><a href="/config">Configuration</a><a href="/deploy">Deploy</a></nav>
+</header>
+<main>
+  <p class="note">Edit <span class="mono">provider-box.env</span> below (or download it, fill it out
+  locally, and paste it back). Validate shows every problem at once; Save stores the
+  file on the Provider Box host. Deploys always use the last saved version.</p>
+  <textarea id="cfg" spellcheck="false"></textarea>
+  <div class="actions">
+    <button class="primary" onclick="save()">Save</button>
+    <button onclick="validateCfg()">Validate</button>
+    <a class="btn" href="/api/config?download=1">Download</a>
+  </div>
+  <div id="status"></div>
+  <ul class="issues" id="issues"></ul>
+</main>
+<script>
+const statusEl = document.getElementById('status');
+const issuesEl = document.getElementById('issues');
+
+async function load() {
+  const res = await fetch('/api/config');
+  document.getElementById('cfg').value = await res.text();
+  const saved = res.headers.get('X-Provider-Box-Config-Saved') === 'true';
+  statusEl.className = '';
+  statusEl.textContent = saved ? 'Loaded the saved configuration.'
+    : 'No configuration saved yet - this is the example template. Fill it out and save.';
+}
+
+function renderIssues(data) {
+  issuesEl.innerHTML = '';
+  for (const v of data.missing_vars || []) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="var"></span> missing (defined in the example but not here)';
+    li.querySelector('.var').textContent = v;
+    issuesEl.appendChild(li);
+  }
+  for (const i of data.issues || []) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="var"></span> <span class="msg"></span>';
+    li.querySelector('.var').textContent = i.var;
+    li.querySelector('.msg').textContent = i.msg;
+    issuesEl.appendChild(li);
+  }
+}
+
+async function validateCfg() {
+  const res = await fetch('/api/config/validate', { method: 'POST', body: document.getElementById('cfg').value });
+  const data = await res.json();
+  renderIssues(data);
+  statusEl.className = data.valid ? 'ok' : 'bad';
+  statusEl.textContent = data.valid ? 'Configuration is valid.'
+    : 'Validation found ' + ((data.issues||[]).length + (data.missing_vars||[]).length) + ' issue(s).';
+}
+
+async function save() {
+  const res = await fetch('/api/config', { method: 'PUT', body: document.getElementById('cfg').value });
+  const data = await res.json();
+  renderIssues(data);
+  if (res.ok) {
+    statusEl.className = data.valid ? 'ok' : '';
+    statusEl.textContent = data.valid ? 'Saved. Configuration is valid.'
+      : 'Saved, but validation found issues (fix them before deploying).';
+  } else {
+    statusEl.className = 'bad';
+    statusEl.textContent = data.error || 'Save rejected: variables are missing (see below).';
+  }
+}
+load();
+</script>
+</body>
+</html>

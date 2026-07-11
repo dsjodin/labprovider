@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dsjodin/provider-box/services/control-plane/internal/certs"
+	"github.com/dsjodin/provider-box/services/control-plane/internal/deploy"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/dns"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/docker"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/ipam"
@@ -50,6 +51,10 @@ type Options struct {
 	DNS    DNSProvider
 	IPAM   IPAMProvider
 	Docker DockerProvider
+
+	// Engine enables the config wizard and deploy routes; nil (the read-only
+	// --dashboard deployment) leaves the dashboard-only surface.
+	Engine *deploy.Engine
 
 	Logger *slog.Logger
 	Now    func() time.Time // injectable clock; defaults to time.Now
@@ -91,6 +96,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /", s.handleIndex)
+	s.registerControlPlane(mux)
 	return mux
 }
 

@@ -8,7 +8,10 @@
 services:
   control-plane:
     image: ${CONTROL_PLANE_IMAGE}
-    build: .
+    # Context is the repo root so the image can bake in the example config.
+    build:
+      context: ../..
+      dockerfile: services/control-plane/Dockerfile
     restart: unless-stopped
     user: "1000:1000"
     # Read-only access to the host Docker socket needs the host docker group.

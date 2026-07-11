@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-11 (control plane deploy engine, config wizard, install.sh)
+
+### Features
+- The control plane now carries a deploy engine (Phase 2 of the v2 plan): a static service registry with explicit dependencies, executed sequentially in dependency order, with per-run progress streamed over SSE. New routes: `/config` (wizard), `/deploy` (service selection + live log), `GET/PUT /api/config`, `POST /api/config/validate`, `GET /api/services`, `POST /api/deploy`, `GET /api/deploys/{id}/events`. The engine is enabled when the image carries the example config; the legacy `--dashboard` compose deployment stays a read-only dashboard.
+- Config wizard: edit or paste `provider-box.env` in the browser, download it, validate (all findings at once, per-variable), and save. The managed copy lives at `/opt/provider-box/control-plane/provider-box.env`; deploys always re-read and re-validate it. Saving is blocked only when variables defined in the example are missing.
+- First three deployers, ported/new in Go (`services/control-plane/internal/deploy`): `s3` (port of `bootstrap/s3.sh`), `chrony`, and `rsyslog` - the latter two are now CONTAINERIZED (host networking; chrony gets only `cap_add: SYS_TIME`; rsyslog config is `rsyslogd -N1`-validated before start). Their images are built locally by the engine from embedded Dockerfiles (`CHRONY_IMAGE`, `RSYSLOG_IMAGE`; alpine + chrony/rsyslog), no registry needed. The bash `--ntp`/`--rsyslog` host-native path is unchanged until cutover.
+- `install.sh` at the repo root: the only shell in the v2 model. Installs Docker if absent (Debian AND Ubuntu repos - fixes IMPROVEMENTS #4), does the one-time host prep (disables the systemd-resolved stub listener with a marked drop-in, disables systemd-timesyncd, creates `/opt/provider-box`), builds the control-plane image from the checkout, and runs it root + host-network with the docker socket, `/opt/provider-box`, and `/host/etc` mounted. Prints the UI URL. No auth on the UI - trusted lab networks only.
+- Templates are rendered with Go text/template (`{{.VAR}}`) instead of envsubst, embedded in the binary. A missing variable now fails the render instead of silently producing an empty string. Golden-file parity tests pin the converted templates against the envsubst output of the originals.
+
+### Changes
+- `SYSLOG_LOG_DIR` default moves to `/opt/provider-box/syslog/logs` (was `/var/log/provider-box`) so the containerized rsyslog and control plane share the `/opt/provider-box` mount. New `CHRONY_DIR` (drift data) and `CHRONY_IMAGE`/`RSYSLOG_IMAGE` variables.
+- The control-plane image is now alpine-based (was scratch) and bundles the pinned docker CLI + compose/buildx plugins; the build context is the repo root so the image carries `provider-box.env.example` for the wizard.
+
+---
+
 ## 2026-07-10 (rename services/dashboard to services/control-plane)
 
 ### Changes

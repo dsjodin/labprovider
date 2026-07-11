@@ -13,8 +13,10 @@ import (
 
 	"github.com/dsjodin/provider-box/services/control-plane/internal/certs"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/config"
+	"github.com/dsjodin/provider-box/services/control-plane/internal/deploy"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/dns"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/docker"
+	"github.com/dsjodin/provider-box/services/control-plane/internal/envfile"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/ipam"
 	"github.com/dsjodin/provider-box/services/control-plane/internal/server"
 )
@@ -67,6 +69,22 @@ func main() {
 		} else {
 			opt.Docker = c
 		}
+	}
+
+	// The deploy engine needs the shipped example config (baked into the image
+	// by install.sh's build). Without it - the legacy --dashboard deployment -
+	// the server stays a read-only dashboard.
+	if _, err := os.Stat(cfg.ExamplePath); err == nil {
+		store := envfile.Store{Path: cfg.ConfigPath, ExamplePath: cfg.ExamplePath}
+		engine := deploy.NewEngine(store, &deploy.StateStore{Path: cfg.StatePath}, logger)
+		// Registration order is the --all deploy order: no-dependency services
+		// first; certificate consumers join after the CA deployer is ported.
+		engine.Register(deploy.Chrony{})
+		engine.Register(deploy.Rsyslog{})
+		engine.Register(deploy.S3{})
+		opt.Engine = engine
+	} else {
+		logger.Warn("deploy engine disabled: example config not found", "path", cfg.ExamplePath)
 	}
 
 	srv, err := server.New(opt)

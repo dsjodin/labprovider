@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provider Box - Deploy</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a2029; --border: #2b333f; --fg: #d7dde5;
+    --muted: #8b95a3; --accent: #4a9eda; --ok: #3fb56a; --warn: #d99a30;
+    --bad: #d9534f; --chip: #232b36;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 18px; }
+  header nav a { color: var(--accent); text-decoration: none; margin-right: 14px; font-size: 13px; }
+  main { padding: 24px; max-width: 1100px; }
+  .panel { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; }
+  label.svc { display: flex; gap: 10px; align-items: baseline; padding: 6px 0;
+    border-bottom: 1px solid var(--border); }
+  label.svc:last-child { border-bottom: none; }
+  label.svc .name { font-weight: 600; min-width: 110px; }
+  label.svc .deps, label.svc .last { color: var(--muted); font-size: 12px; }
+  label.svc .last.failed { color: var(--bad); }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button { background: var(--chip); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #08111a; font-weight: 600; }
+  #status { font-size: 13px; margin-left: 6px; }
+  #status.bad { color: var(--bad); }
+  #status.ok { color: var(--ok); }
+  pre#log { background: #0a0e13; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; height: 40vh; overflow: auto; font-size: 12px; white-space: pre-wrap; }
+  pre#log .step { color: var(--accent); }
+  pre#log .fail { color: var(--bad); }
+  pre#log .done { color: var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Provider Box &mdash; Deploy</h1>
+  <nav><a href="/">Dashboard</a><a href="/config">Configuration</a><a href="/deploy">Deploy</a></nav>
+</header>
+<main>
+  <div class="panel" id="services"></div>
+  <div class="panel">
+    <div class="actions">
+      <button class="primary" onclick="start(false)">Deploy selected</button>
+      <button onclick="start(true)">Remove selected</button>
+      <button onclick="selectAll()">Select all</button>
+      <span id="status"></span>
+    </div>
+  </div>
+  <pre id="log"></pre>
+</main>
+<script>
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+
+async function loadServices() {
+  const res = await fetch('/api/services');
+  const services = await res.json() || [];
+  const box = document.getElementById('services');
+  box.innerHTML = '';
+  for (const s of services) {
+    const label = document.createElement('label');
+    label.className = 'svc';
+    const failed = (s.last_result || '').startsWith('failed');
+    label.innerHTML = '<input type="checkbox" value=""> <span class="name"></span>' +
+      '<span class="deps"></span><span class="last' + (failed ? ' failed' : '') + '"></span>';
+    label.querySelector('input').value = s.name;
+    label.querySelector('.name').textContent = s.name;
+    label.querySelector('.deps').textContent = (s.deps && s.deps.length) ? 'needs ' + s.deps.join(', ') : '';
+    label.querySelector('.last').textContent = s.last_at ? s.last_action + ' ' + s.last_result + ' at ' + s.last_at : 'never deployed';
+    box.appendChild(label);
+  }
+}
+
+function selectAll() {
+  document.querySelectorAll('#services input').forEach(cb => cb.checked = true);
+}
+
+function append(cls, text) {
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text + '\n';
+  logEl.appendChild(span);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function start(remove) {
+  const selected = [...document.querySelectorAll('#services input:checked')].map(cb => cb.value);
+  if (!selected.length) { statusEl.className = 'bad'; statusEl.textContent = 'Select at least one service.'; return; }
+  if (remove && !confirm('Remove ' + selected.join(', ') + '? Persistent data is preserved.')) return;
+  logEl.textContent = '';
+  statusEl.className = ''; statusEl.textContent = (remove ? 'Removing' : 'Deploying') + '...';
+  const res = await fetch('/api/deploy', { method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ services: selected, remove }) });
+  const data = await res.json();
+  if (!res.ok) { statusEl.className = 'bad'; statusEl.textContent = data.error || 'Deploy rejected.'; return; }
+
+  const es = new EventSource('/api/deploys/' + data.id + '/events');
+  es.onmessage = (m) => {
+    const ev = JSON.parse(m.data);
+    switch (ev.type) {
+      case 'step-start': append('step', '==> ' + ev.service); break;
+      case 'log': append('', '    ' + ev.line); break;
+      case 'step-done': append('done', '    ' + ev.service + ' ok'); break;
+      case 'step-failed': append('fail', '    ' + ev.service + ' FAILED: ' + ev.line); break;
+      case 'deploy-done': append('done', 'Deploy finished.'); statusEl.className = 'ok';
+        statusEl.textContent = 'Finished.'; es.close(); loadServices(); break;
+      case 'deploy-failed': append('fail', 'Deploy failed.'); statusEl.className = 'bad';
+        statusEl.textContent = 'Failed - see log.'; es.close(); loadServices(); break;
+    }
+  };
+  es.onerror = () => { es.close(); loadServices(); };
+}
+loadServices();
+</script>
+</body>
+</html>
