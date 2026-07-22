@@ -66,6 +66,11 @@ services:
       ZITADEL_API_URL: http://zitadel:8080
       ZITADEL_SERVICE_USER_TOKEN_FILE: /machinekey/login-client.pat
       NEXT_PUBLIC_BASE_PATH: /ui/v2/login
+      # The login container reaches the core over the internal service name, so
+      # Zitadel would see Host: zitadel and fail to match the virtual instance
+      # (which is keyed on the external domain). Override the Host header so the
+      # instance lookup resolves to ZITADEL_FQDN.
+      CUSTOM_REQUEST_HEADERS: "Host:{{.ZITADEL_FQDN}}"
     volumes:
       - {{.WORKDIR}}/zitadel/machinekey:/machinekey:ro
 
