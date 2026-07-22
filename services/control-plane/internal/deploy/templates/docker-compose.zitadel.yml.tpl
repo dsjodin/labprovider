@@ -55,7 +55,7 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
       ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /machinekey/login-client.pat
     volumes:
-      - {{.WORKDIR}}/zitadel/machinekey:/machinekey
+      - {{.ZITADEL_DIR}}/machinekey:/machinekey
 
   login:
     image: {{.ZITADEL_LOGIN_IMAGE}}
@@ -72,7 +72,7 @@ services:
       # instance lookup resolves and public URLs carry the external host:port.
       CUSTOM_REQUEST_HEADERS: "Host:{{.ZITADEL_FQDN}}:{{.ZITADEL_PORT}}"
     volumes:
-      - {{.WORKDIR}}/zitadel/machinekey:/machinekey:ro
+      - {{.ZITADEL_DIR}}/machinekey:/machinekey:ro
 
   proxy:
     image: {{.ZITADEL_NGINX_IMAGE}}

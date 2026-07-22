@@ -55,7 +55,7 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
       ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /machinekey/login-client.pat
     volumes:
-      - /opt/labprovider/runtime/zitadel/machinekey:/machinekey
+      - /opt/labprovider/zitadel/machinekey:/machinekey
 
   login:
     image: ghcr.io/zitadel/zitadel-login:v4.16.1
@@ -72,7 +72,7 @@ services:
       # instance lookup resolves and public URLs carry the external host:port.
       CUSTOM_REQUEST_HEADERS: "Host:zid.sddc.lab:7443"
     volumes:
-      - /opt/labprovider/runtime/zitadel/machinekey:/machinekey:ro
+      - /opt/labprovider/zitadel/machinekey:/machinekey:ro
 
   proxy:
     image: docker.io/library/nginx:1.31-alpine

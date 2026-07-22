@@ -51,7 +51,11 @@ func (z Zitadel) Deploy(ctx context.Context, rc *RunCtx) error {
 	}
 
 	certDir := filepath.Join(env["ZITADEL_DIR"], "certs", env["ZITADEL_FQDN"])
-	machinekey := filepath.Join(runtime, "machinekey")
+	// The machine-user PATs are only written by Zitadel's first-instance init,
+	// so they must persist alongside the database (both under ZITADEL_DIR, which
+	// Remove preserves) - not under the disposable runtime dir, which Remove
+	// wipes and would desync the PATs from an existing instance on redeploy.
+	machinekey := filepath.Join(env["ZITADEL_DIR"], "machinekey")
 	for _, dir := range []string{runtime, env["ZITADEL_DIR"], certDir} {
 		if err := EnsureDir(dir, 0o755, -1, -1); err != nil {
 			return err
