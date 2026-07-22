@@ -16,11 +16,13 @@ server {
   location /ui/v2/login/ {
     proxy_pass http://login:3000;
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
+    # $http_host keeps the port ($host strips it); Zitadel builds the OIDC
+    # issuer and other public URLs from this header, so the port must survive.
+    proxy_set_header Host $http_host;
     proxy_set_header Connection "";
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Host $http_host;
     proxy_set_header X-Forwarded-Proto https;
   }
 
@@ -31,11 +33,13 @@ server {
   location / {
     proxy_pass http://zitadel:8080;
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
+    # $http_host keeps the port ($host strips it); Zitadel builds the OIDC
+    # issuer and other public URLs from this header, so the port must survive.
+    proxy_set_header Host $http_host;
     proxy_set_header Connection "";
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Host $http_host;
     proxy_set_header X-Forwarded-Proto https;
   }
 }

@@ -69,8 +69,8 @@ services:
       # The login container reaches the core over the internal service name, so
       # Zitadel would see Host: zitadel and fail to match the virtual instance
       # (which is keyed on the external domain). Override the Host header so the
-      # instance lookup resolves to ZITADEL_FQDN.
-      CUSTOM_REQUEST_HEADERS: "Host:{{.ZITADEL_FQDN}}"
+      # instance lookup resolves and public URLs carry the external host:port.
+      CUSTOM_REQUEST_HEADERS: "Host:{{.ZITADEL_FQDN}}:{{.ZITADEL_PORT}}"
     volumes:
       - {{.WORKDIR}}/zitadel/machinekey:/machinekey:ro
 
