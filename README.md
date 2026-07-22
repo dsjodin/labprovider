@@ -557,7 +557,8 @@ VCF integration notes:
 - Runs in parallel with Keycloak and Authentik on separate FQDNs and ports when more than one is deployed (including via "Select all")
 - Exposed at `https://<ZITADEL_FQDN>:<ZITADEL_PORT>` (`7443` by default)
 - Serves the step-ca-issued certificate directly (mounted from `${ZITADEL_DIR}/certs/<ZITADEL_FQDN>`); no self-signed bootstrap window
-- Persists application state in PostgreSQL under `${ZITADEL_DIR}/postgres`
+- Runs Zitadel v4 as a single core container. v4 defaults new instances to the decoupled Login V2 container; the deploy keeps the bundled legacy login (`ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED=false`) so one container serves the interactive sign-in flow at `/ui/login`. To adopt Login V2, add the separate `zitadel-login` container behind a shared origin.
+- Persists application state in PostgreSQL 17 under `${ZITADEL_DIR}/postgres` (v4 dropped CockroachDB support)
 - `ZITADEL_MASTERKEY` must be EXACTLY 32 characters (Zitadel requirement)
 - Bootstraps a human admin (`ZITADEL_ADMIN_USERNAME`/`ZITADEL_ADMIN_PASSWORD`) and a machine service account whose PAT is written to `WORKDIR/zitadel/machinekey/pat.txt` on first start
 - Post-deploy, the control plane uses that PAT against the Management API to create a bootstrap project, an OIDC application with `ZITADEL_BOOTSTRAP_CLIENT_REDIRECT_URIS`, a project role (`ZITADEL_BOOTSTRAP_GROUP_NAME`), and a lab user granted that role; the steps tolerate pre-existing objects on re-runs

@@ -114,8 +114,8 @@ var testEnv = map[string]string{
 	"AUTHENTIK_BOOTSTRAP_CLIENT_SECRET":  "akclient",
 	"AUTHENTIK_BOOTSTRAP_CLIENT_REDIRECT_URIS_BLOCK": "        - matching_mode: strict\n          url: \"https://vc.sddc.lab/oauth2\"",
 
-	"ZITADEL_IMAGE":                    "ghcr.io/zitadel/zitadel:v2.71.0",
-	"ZITADEL_POSTGRES_IMAGE":           "docker.io/library/postgres:16-alpine",
+	"ZITADEL_IMAGE":                    "ghcr.io/zitadel/zitadel:v4.16.1",
+	"ZITADEL_POSTGRES_IMAGE":           "docker.io/library/postgres:17-alpine",
 	"ZITADEL_DIR":                      "/opt/labprovider/zitadel",
 	"ZITADEL_FQDN":                     "zid.sddc.lab",
 	"ZITADEL_PORT":                     "7443",

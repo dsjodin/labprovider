@@ -29,6 +29,10 @@ services:
       ZITADEL_EXTERNALDOMAIN: "{{.ZITADEL_FQDN}}"
       ZITADEL_EXTERNALPORT: "{{.ZITADEL_PORT}}"
       ZITADEL_EXTERNALSECURE: "true"
+      # v4 defaults new instances to the decoupled Login V2 container; keep the
+      # legacy login bundled in this core container so a single container serves
+      # the interactive sign-in flow (served at /ui/login).
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
       ZITADEL_DATABASE_POSTGRES_HOST: db
       ZITADEL_DATABASE_POSTGRES_PORT: "5432"
       ZITADEL_DATABASE_POSTGRES_DATABASE: "{{.ZITADEL_PG_DB}}"
