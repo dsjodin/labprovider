@@ -20,8 +20,8 @@ http {
     listen 443 ssl;
     server_name {{.DEPOT_FQDN}};
 
-    ssl_certificate /etc/provider-box/certs/depot.crt;
-    ssl_certificate_key /etc/provider-box/certs/depot.key;
+    ssl_certificate /etc/labprovider/certs/depot.crt;
+    ssl_certificate_key /etc/labprovider/certs/depot.key;
 
     root /usr/share/nginx/html;
     index index.html;

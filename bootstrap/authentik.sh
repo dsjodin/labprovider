@@ -103,8 +103,8 @@ render_authentik_blueprint() {
 
   build_authentik_redirect_uris_block
   install -d -m 0755 "${blueprint_dir}"
-  render_template "${TEMPLATE_DIR}/authentik-blueprint.yaml.tpl" "${blueprint_dir}/provider-box-vcf.yaml"
-  chmod 0644 "${blueprint_dir}/provider-box-vcf.yaml"
+  render_template "${TEMPLATE_DIR}/authentik-blueprint.yaml.tpl" "${blueprint_dir}/labprovider-vcf.yaml"
+  chmod 0644 "${blueprint_dir}/labprovider-vcf.yaml"
 }
 
 require_ca_ready_for_authentik() {
@@ -152,7 +152,7 @@ issue_authentik_certificates() {
   local cert_dir="${AUTHENTIK_DIR}/certs/${AUTHENTIK_FQDN}"
   local fullchain_file="${cert_dir}/fullchain.pem"
   local key_file="${cert_dir}/privkey.pem"
-  local cert_dir_in_container="/etc/provider-box/authentik-certs"
+  local cert_dir_in_container="/etc/labprovider/authentik-certs"
   local password_file_in_container="/home/step/${CA_PASSWORD_FILE#${CA_DATA_DIR}/}"
   local cert_count
 
@@ -283,10 +283,10 @@ authentik_api_get() {
 reapply_authentik_blueprint() {
   local blueprint_pk http_code
 
-  blueprint_pk="$(authentik_api_get "/api/v3/managed/blueprints/?search=provider-box-vcf-bootstrap" | \
+  blueprint_pk="$(authentik_api_get "/api/v3/managed/blueprints/?search=labprovider-vcf-bootstrap" | \
     authentik_json_string_field pk)"
   [[ -n "${blueprint_pk}" ]] || \
-    fail "Authentik did not discover the provider-box-vcf-bootstrap blueprint. Check worker logs with: docker compose logs worker"
+    fail "Authentik did not discover the labprovider-vcf-bootstrap blueprint. Check worker logs with: docker compose logs worker"
 
   http_code="$(curl --silent --show-error \
     --output /dev/null \

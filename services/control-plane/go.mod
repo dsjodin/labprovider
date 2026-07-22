@@ -1,4 +1,4 @@
-module github.com/dsjodin/provider-box/services/control-plane
+module github.com/dsjodin/labprovider/services/control-plane
 
 go 1.24
 

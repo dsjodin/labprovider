@@ -13,18 +13,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/model"
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/netbox"
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/reconcile"
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/technitium"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/model"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/netbox"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/reconcile"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/technitium"
 )
 
-// sourceWithBuiltins appends the built-in Provider Box service records to the
+// sourceWithBuiltins appends the built-in Labprovider service records to the
 // NetBox-derived desired set on every pass. The built-ins cannot live in
 // NetBox as separate IP objects (global IP uniqueness allows only the one
 // canonical host IP object), so they are synthesized from the environment.
 // A records only: the host IP's PTR stays the NetBox-derived canonical
-// PROVIDER_BOX_FQDN, and service FQDNs must not be PTR targets.
+// LABPROVIDER_FQDN, and service FQDNs must not be PTR targets.
 type sourceWithBuiltins struct {
 	base     reconcile.Source
 	builtins []model.Record

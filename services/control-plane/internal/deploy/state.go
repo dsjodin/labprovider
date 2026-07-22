@@ -9,7 +9,7 @@ import (
 )
 
 // StateStore persists advisory deploy history at
-// /opt/provider-box/control-plane/state.json. Docker remains the source of
+// /opt/labprovider/control-plane/state.json. Docker remains the source of
 // truth for what is running; nothing gates on this file except UI display.
 type StateStore struct {
 	Path string

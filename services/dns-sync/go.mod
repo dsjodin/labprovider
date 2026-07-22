@@ -1,3 +1,3 @@
-module github.com/dsjodin/provider-box/services/dns-sync
+module github.com/dsjodin/labprovider/services/dns-sync
 
 go 1.24

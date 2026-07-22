@@ -96,7 +96,7 @@ issue_technitium_certificates() {
   local cert_dir="${TECHNITIUM_CERT_DIR}"
   local cert_file="${cert_dir}/technitium.crt"
   local key_file="${cert_dir}/technitium.key"
-  local cert_dir_in_container="/etc/provider-box/technitium-certs"
+  local cert_dir_in_container="/etc/labprovider/technitium-certs"
   local password_file_in_container="/home/step/${CA_PASSWORD_FILE#${CA_DATA_DIR}/}"
 
   install -d -m 0755 "${cert_dir}"
@@ -199,8 +199,8 @@ render_technitium_stack() {
 # before and after every transition so bootstrap never proceeds with broken
 # DNS. --technitium --remove restores the stock configuration.
 
-TECHNITIUM_RESOLVED_DROPIN="/etc/systemd/resolved.conf.d/provider-box.conf"
-TECHNITIUM_RESOLV_CONF_MARKER="Managed by Provider Box (--technitium)"
+TECHNITIUM_RESOLVED_DROPIN="/etc/systemd/resolved.conf.d/labprovider.conf"
+TECHNITIUM_RESOLV_CONF_MARKER="Managed by Labprovider (--technitium)"
 
 verify_host_resolution() {
   local context="$1"
@@ -239,7 +239,7 @@ preflight_technitium_port_53() {
     listeners="$(ss -H -lntup 'sport = :53' 2>/dev/null || true)"
   fi
 
-  [[ -z "${listeners}" ]] || fail "Port 53 is already in use and Provider Box will not stop the holder automatically. Stop the conflicting service (for example a leftover unbound or dnsmasq) and re-run --technitium. Current listeners:
+  [[ -z "${listeners}" ]] || fail "Port 53 is already in use and Labprovider will not stop the holder automatically. Stop the conflicting service (for example a leftover unbound or dnsmasq) and re-run --technitium. Current listeners:
 ${listeners}"
 }
 
@@ -359,7 +359,7 @@ configure_technitium_web_tls() {
     --data-urlencode "token=${token}" \
     --data-urlencode "webServiceEnableTls=true" \
     --data-urlencode "webServiceTlsPort=53443" \
-    --data-urlencode "webServiceTlsCertificatePath=/etc/provider-box/technitium-certs/technitium.pfx" \
+    --data-urlencode "webServiceTlsCertificatePath=/etc/labprovider/technitium-certs/technitium.pfx" \
     --data-urlencode "webServiceTlsCertificatePassword=${pfx_password}" \
     "${console_url}/api/settings/set" || true)"
   status="$(printf '%s' "${set_response}" | technitium_json_string_field status)"
@@ -414,7 +414,7 @@ provision_technitium_api_token() {
   fi
 
   create_response="$(curl --silent --show-error \
-    "${console_url}/api/user/createToken?user=admin&pass=admin&tokenName=provider-box-dns-sync" || true)"
+    "${console_url}/api/user/createToken?user=admin&pass=admin&tokenName=labprovider-dns-sync" || true)"
   api_token="$(printf '%s' "${create_response}" | technitium_json_string_field token)"
   [[ -n "${api_token}" ]] || \
     fail "Failed to create a Technitium API token. Response: ${create_response}"
@@ -476,7 +476,7 @@ provision_technitium_dashboard_token() {
     create_response="$(curl --silent --show-error --get \
       --data-urlencode "token=${admin_token}" \
       --data-urlencode "user=dashboard" \
-      --data-urlencode "displayName=Provider Box Dashboard" \
+      --data-urlencode "displayName=Labprovider Dashboard" \
       --data-urlencode "pass=${dash_pass}" \
       "${console_url}/api/admin/users/create" || true)"
     status="$(printf '%s' "${create_response}" | technitium_json_string_field status)"
@@ -545,7 +545,7 @@ provision_technitium_dashboard_token() {
   create_response="$(curl --silent --show-error --get \
     --data-urlencode "token=${admin_token}" \
     --data-urlencode "user=dashboard" \
-    --data-urlencode "tokenName=provider-box-dashboard" \
+    --data-urlencode "tokenName=labprovider-dashboard" \
     "${console_url}/api/admin/sessions/createToken" || true)"
   api_token="$(printf '%s' "${create_response}" | technitium_json_string_field token)"
   [[ -n "${api_token}" ]] || \

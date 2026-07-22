@@ -89,7 +89,7 @@ func (nb Netbox) Deploy(ctx context.Context, rc *RunCtx) error {
 	if err != nil {
 		return err
 	}
-	api.auth, _, _, err = api.provisionToken(ctx, env["NETBOX_SUPERUSER_NAME"], env["NETBOX_SUPERUSER_PASSWORD"], "provider-box seeding", true)
+	api.auth, _, _, err = api.provisionToken(ctx, env["NETBOX_SUPERUSER_NAME"], env["NETBOX_SUPERUSER_PASSWORD"], "labprovider seeding", true)
 	if err != nil {
 		return fmt.Errorf("provision a NetBox API token for %s: %w", env["NETBOX_SUPERUSER_NAME"], err)
 	}
@@ -104,7 +104,7 @@ func (nb Netbox) Deploy(ctx context.Context, rc *RunCtx) error {
 	}
 	// Retire the seeding token itself so re-runs do not accumulate live
 	// superuser credentials (IMPROVEMENTS #2).
-	api.retireTokensByDescription(ctx, rc, "provider-box seeding", "seeding")
+	api.retireTokensByDescription(ctx, rc, "labprovider seeding", "seeding")
 
 	rc.Log("NetBox deployed: https://%s:%s (superuser %s). Media: %s",
 		env["NETBOX_FQDN"], env["NETBOX_PORT"], env["NETBOX_SUPERUSER_NAME"], env["NETBOX_MEDIA_DIR"])
@@ -159,12 +159,12 @@ func loadSeedRecords(rc *RunCtx) ([]seedRecord, error) {
 }
 
 // seedFilePath is the managed dns.seed location: alongside the managed config
-// under /opt/provider-box/control-plane, overridable via DNS_SEED_FILE.
+// under /opt/labprovider/control-plane, overridable via DNS_SEED_FILE.
 func seedFilePath(env map[string]string) string {
 	if v := env["DNS_SEED_FILE"]; v != "" {
 		return v
 	}
-	return "/opt/provider-box/control-plane/dns.seed"
+	return "/opt/labprovider/control-plane/dns.seed"
 }
 
 func resolveNetboxPepper(rc *RunCtx) (string, error) {
@@ -201,24 +201,24 @@ func resolveNetboxPepper(rc *RunCtx) (string, error) {
 	return value, nil
 }
 
-// seedNetbox creates the Provider Box inventory: site, manufacturer, device
+// seedNetbox creates the Labprovider inventory: site, manufacturer, device
 // type, role, device, the canonical host IP, one service entry per built-in
 // endpoint, and the dns.seed records (one IP object per unique address).
 func seedNetbox(ctx context.Context, rc *RunCtx, api *netboxAPI, records []seedRecord) error {
 	env := rc.Env
 
 	siteID, err := api.ensureObject(ctx, "/api/dcim/sites/", "name=Provider+Box",
-		map[string]any{"name": "Provider Box", "slug": "provider-box", "status": "active"})
+		map[string]any{"name": "Labprovider", "slug": "labprovider", "status": "active"})
 	if err != nil {
 		return err
 	}
 	manufacturerID, err := api.ensureObject(ctx, "/api/dcim/manufacturers/", "name=Provider+Box",
-		map[string]any{"name": "Provider Box", "slug": "provider-box"})
+		map[string]any{"name": "Labprovider", "slug": "labprovider"})
 	if err != nil {
 		return err
 	}
 	deviceTypeID, err := api.ensureObject(ctx, "/api/dcim/device-types/", "model=Provider+Box",
-		map[string]any{"manufacturer": manufacturerID, "model": "Provider Box", "slug": "provider-box"})
+		map[string]any{"manufacturer": manufacturerID, "model": "Labprovider", "slug": "labprovider"})
 	if err != nil {
 		return err
 	}
@@ -227,13 +227,13 @@ func seedNetbox(ctx context.Context, rc *RunCtx, api *netboxAPI, records []seedR
 	if err != nil {
 		return err
 	}
-	deviceID, err := api.getObjectID(ctx, "/api/dcim/devices/", "name=provider-box")
+	deviceID, err := api.getObjectID(ctx, "/api/dcim/devices/", "name=labprovider")
 	if err != nil {
 		return err
 	}
 	devicePayload := map[string]any{"site": siteID, "device_type": deviceTypeID, "role": roleID, "status": "active"}
 	if deviceID == 0 {
-		devicePayload["name"] = "provider-box"
+		devicePayload["name"] = "labprovider"
 		if deviceID, err = api.createObject(ctx, "/api/dcim/devices/", devicePayload); err != nil {
 			return err
 		}
@@ -242,16 +242,16 @@ func seedNetbox(ctx context.Context, rc *RunCtx, api *netboxAPI, records []seedR
 	}
 
 	// Canonical host IP: created explicitly from HOST_IP with
-	// PROVIDER_BOX_FQDN as dns_name; built-in service FQDNs live in the
+	// LABPROVIDER_FQDN as dns_name; built-in service FQDNs live in the
 	// description. Always patched so config changes propagate.
-	prefix, err := ensureSeedPrefix(ctx, api, env["HOST_IP"], "provider-box")
+	prefix, err := ensureSeedPrefix(ctx, api, env["HOST_IP"], "labprovider")
 	if err != nil {
 		return err
 	}
 	_ = prefix
-	description := "Provider Box services: " + strings.Join(builtinServiceFQDNs(env), ", ")
+	description := "Labprovider services: " + strings.Join(builtinServiceFQDNs(env), ", ")
 	hostAddr := env["HOST_IP"]
-	hostPayload := map[string]any{"address": hostAddr, "dns_name": env["PROVIDER_BOX_FQDN"], "status": "active", "description": description}
+	hostPayload := map[string]any{"address": hostAddr, "dns_name": env["LABPROVIDER_FQDN"], "status": "active", "description": description}
 	hostIPID, err := api.getObjectID(ctx, "/api/ipam/ip-addresses/", "address="+url.QueryEscape(hostAddr))
 	if err != nil {
 		return err
@@ -372,7 +372,7 @@ func builtinServiceEntries(env map[string]string) []builtinService {
 	}
 }
 
-// builtinServiceFQDNs is the shared FQDN list (provider_box_builtin_fqdns):
+// builtinServiceFQDNs is the shared FQDN list (labprovider_builtin_fqdns):
 // the canonical host description and dns-sync's built-in record synthesis
 // both consume it. Unset services are skipped.
 func builtinServiceFQDNs(env map[string]string) []string {
@@ -406,8 +406,8 @@ func provisionNetboxDNSSyncToken(ctx context.Context, rc *RunCtx, api *netboxAPI
 		}
 		rc.Log("Stored dns-sync NetBox token was rejected; provisioning a replacement.")
 	}
-	api.retireTokensByDescription(ctx, rc, "provider-box dns-sync", "dns-sync")
-	_, composite, _, err := api.provisionToken(ctx, env["NETBOX_SUPERUSER_NAME"], env["NETBOX_SUPERUSER_PASSWORD"], "provider-box dns-sync", true)
+	api.retireTokensByDescription(ctx, rc, "labprovider dns-sync", "dns-sync")
+	_, composite, _, err := api.provisionToken(ctx, env["NETBOX_SUPERUSER_NAME"], env["NETBOX_SUPERUSER_PASSWORD"], "labprovider dns-sync", true)
 	if err != nil {
 		return fmt.Errorf("provision a dns-sync NetBox token: %w", err)
 	}
@@ -491,8 +491,8 @@ func provisionNetboxDashboardToken(ctx context.Context, rc *RunCtx, api *netboxA
 		return err
 	}
 
-	api.retireTokensByDescription(ctx, rc, "provider-box dashboard", "dashboard")
-	_, composite, tokenID, err := api.provisionToken(ctx, "dashboard", dashPass, "provider-box dashboard", false)
+	api.retireTokensByDescription(ctx, rc, "labprovider dashboard", "dashboard")
+	_, composite, tokenID, err := api.provisionToken(ctx, "dashboard", dashPass, "labprovider dashboard", false)
 	if err != nil {
 		return fmt.Errorf("provision a dashboard NetBox token: %w", err)
 	}

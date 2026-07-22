@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/dsjodin/provider-box/services/control-plane/internal/envfile"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/envfile"
 )
 
 type fakeService struct {

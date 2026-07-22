@@ -11,4 +11,4 @@ services:
       - "{{.TECHNITIUM_HTTPS_PORT}}:53443/tcp"
     volumes:
       - {{.TECHNITIUM_DATA_DIR}}:/etc/dns
-      - {{.TECHNITIUM_CERT_DIR}}:/etc/provider-box/technitium-certs:ro
+      - {{.TECHNITIUM_CERT_DIR}}:/etc/labprovider/technitium-certs:ro

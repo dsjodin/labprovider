@@ -39,7 +39,7 @@ require_ca_vars() {
   validate_var_port "${CA_POSTGRES_PORT}"
   validate_var_path "${CA_POSTGRES_DATA_DIR}"
   [[ "${CA_POSTGRES_DATA_DIR}" != "${CA_DATA_DIR}"/* ]] || \
-    fail "CA_POSTGRES_DATA_DIR must NOT be nested under CA_DATA_DIR (the CA_DATA_DIR chown would corrupt postgres data). Use a sibling path such as /opt/provider-box/stepca-postgres."
+    fail "CA_POSTGRES_DATA_DIR must NOT be nested under CA_DATA_DIR (the CA_DATA_DIR chown would corrupt postgres data). Use a sibling path such as /opt/labprovider/stepca-postgres."
   validate_ca_password_value "${CA_POSTGRES_PASSWORD}"
   validate_ca_password_value "${CA_POSTGRES_RO_PASSWORD}"
   resolve_ca_pgpassfile

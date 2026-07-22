@@ -1,4 +1,4 @@
-# Provider Box — Project Context
+# Labprovider — Project Context
 
 This document complements `AGENTS.md`, which defines implementation rules and constraints.
 
@@ -11,7 +11,7 @@ This document complements `AGENTS.md`, which defines implementation rules and co
 
 ## Overview
 
-Provider Box is a small, opinionated infrastructure platform for lab and proof-of-concept environments.
+Labprovider is a small, opinionated infrastructure platform for lab and proof-of-concept environments.
 
 It provides a single-node infrastructure services layer supporting VMware Cloud Foundation (VCF) and similar platforms, deployed and observed through a web control plane.
 
@@ -25,7 +25,7 @@ The focus is on:
 
 ## Core Philosophy
 
-Provider Box is intentionally constrained:
+Labprovider is intentionally constrained:
 
 - Single node only
 - No orchestration (no Kubernetes)
@@ -44,7 +44,7 @@ Everything is containerized:
 | Component | Implementation |
 |-----------|----------------|
 | All services | Docker Compose stacks |
-| Control plane | Go binary in a container (root, host network, docker socket + `/opt/provider-box` + `/host/etc` mounted) |
+| Control plane | Go binary in a container (root, host network, docker socket + `/opt/labprovider` + `/host/etc` mounted) |
 | Host footprint | Docker plus two one-time systemd tweaks done by `install.sh` |
 
 No clustering or orchestration. The transitional bash bootstrap still deploys chrony/rsyslog natively; it is scheduled for removal.
@@ -95,7 +95,7 @@ No clustering or orchestration. The transitional bash bootstrap still deploys ch
 
 ## Configuration Model
 
-Single source of truth: `provider-box.env`, managed by the wizard at `/opt/provider-box/control-plane/provider-box.env`.
+Single source of truth: `labprovider.env`, managed by the wizard at `/opt/labprovider/control-plane/labprovider.env`.
 
 Principles:
 - explicit values, no implicit defaults
@@ -105,7 +105,7 @@ Principles:
 
 ## Container Image Model
 
-All images are pinned centrally in `provider-box.env` (`*_IMAGE` variables). Locally built images (`provider-box/control-plane`, `provider-box/chrony`, `provider-box/rsyslog`, `provider-box/dns-sync`) build from the checkout or from sources baked into the control-plane image; no registry access is needed at deploy time.
+All images are pinned centrally in `labprovider.env` (`*_IMAGE` variables). Locally built images (`labprovider/control-plane`, `labprovider/chrony`, `labprovider/rsyslog`, `labprovider/dns-sync`) build from the checkout or from sources baked into the control-plane image; no registry access is needed at deploy time.
 
 ---
 
@@ -129,9 +129,9 @@ All images are pinned centrally in `provider-box.env` (`*_IMAGE` variables). Loc
 
 ## Directory Model
 
-- Persistent service data: `/opt/provider-box/<service>`
-- Runtime-generated files: `${WORKDIR}` (default `/opt/provider-box/runtime/<service>`)
-- Control plane state: `/opt/provider-box/control-plane/` (managed config, dns.seed, state.json, certs, secrets)
+- Persistent service data: `/opt/labprovider/<service>`
+- Runtime-generated files: `${WORKDIR}` (default `/opt/labprovider/runtime/<service>`)
+- Control plane state: `/opt/labprovider/control-plane/` (managed config, dns.seed, state.json, certs, secrets)
 
 ---
 
@@ -196,6 +196,6 @@ Changes should:
 
 ## Summary
 
-Provider Box is:
+Labprovider is:
 
 A minimal, reproducible, single-node infrastructure platform for lab environments — fully containerized, driven by a web control plane, prioritizing clarity, simplicity, and controlled dependencies.

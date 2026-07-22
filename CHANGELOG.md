@@ -36,7 +36,7 @@ Remaining before the bash deletion (the final v2 step): end-to-end verification 
 - The deploy engine now covers the full DNS chain (Phase 4 of the v2 plan): Go ports of `bootstrap/technitium.sh`, `bootstrap/netbox.sh`, and `bootstrap/dns-sync.sh` with the same flows and data-preservation semantics. Highlights per deployer:
   - **technitium**: pre-pull-before-down (DNS never goes down against an uncached image), port-53 test-bind preflight, PKCS#12 bundle built natively with go-pkcs12 (replaces openssl), forwarder + web-TLS configuration over the settings API, dns-sync token minting, dashboard user/grants/token, and host resolv.conf point/restore via the mounted `/host/etc`. NEW: the first-boot `admin`/`admin` credentials are rotated to `TECHNITIUM_ADMIN_PASSWORD` (new required variable) on first deploy and used on re-runs - closes IMPROVEMENTS #1 (default credentials window, broken re-runs after a manual password change).
   - **netbox**: pepper resolution/persistence, API seeding with typed JSON payloads (site/manufacturer/device-type/role/device, canonical host IP, built-in service entries, dns.seed import), v2 Bearer token provisioning with legacy fallback, dns-sync + dashboard read-only token provisioning with description-tagged retirement. NEW: the per-run superuser seeding token is retired at the end of the deploy - closes IMPROVEMENTS #2 (leaked live superuser token per run).
-  - **dns-sync**: image built from source baked into the control-plane image (no repo checkout needed on the host), dns.seed import via dns-seed, pinned readiness gates against NetBox and Technitium, then real-DNS verification that `PROVIDER_BOX_FQDN` and every built-in service FQDN resolve via Technitium.
+  - **dns-sync**: image built from source baked into the control-plane image (no repo checkout needed on the host), dns.seed import via dns-seed, pinned readiness gates against NetBox and Technitium, then real-DNS verification that `LABPROVIDER_FQDN` and every built-in service FQDN resolve via Technitium.
 - The config wizard now also manages `dns.seed` (edit/validate/save, saved next to the managed config); the netbox and dns-sync deployers read the same managed copy.
 - Deploying "all" from the UI now includes dns-sync automatically in the right order - the old "run --dns-sync after --all" caveat is gone on the control-plane path.
 
@@ -55,23 +55,23 @@ Remaining before the bash deletion (the final v2 step): end-to-end verification 
 
 ### Features
 - The control plane now carries a deploy engine (Phase 2 of the v2 plan): a static service registry with explicit dependencies, executed sequentially in dependency order, with per-run progress streamed over SSE. New routes: `/config` (wizard), `/deploy` (service selection + live log), `GET/PUT /api/config`, `POST /api/config/validate`, `GET /api/services`, `POST /api/deploy`, `GET /api/deploys/{id}/events`. The engine is enabled when the image carries the example config; the legacy `--dashboard` compose deployment stays a read-only dashboard.
-- Config wizard: edit or paste `provider-box.env` in the browser, download it, validate (all findings at once, per-variable), and save. The managed copy lives at `/opt/provider-box/control-plane/provider-box.env`; deploys always re-read and re-validate it. Saving is blocked only when variables defined in the example are missing.
+- Config wizard: edit or paste `labprovider.env` in the browser, download it, validate (all findings at once, per-variable), and save. The managed copy lives at `/opt/labprovider/control-plane/labprovider.env`; deploys always re-read and re-validate it. Saving is blocked only when variables defined in the example are missing.
 - First three deployers, ported/new in Go (`services/control-plane/internal/deploy`): `s3` (port of `bootstrap/s3.sh`), `chrony`, and `rsyslog` - the latter two are now CONTAINERIZED (host networking; chrony gets only `cap_add: SYS_TIME`; rsyslog config is `rsyslogd -N1`-validated before start). Their images are built locally by the engine from embedded Dockerfiles (`CHRONY_IMAGE`, `RSYSLOG_IMAGE`; alpine + chrony/rsyslog), no registry needed. The bash `--ntp`/`--rsyslog` host-native path is unchanged until cutover.
-- `install.sh` at the repo root: the only shell in the v2 model. Installs Docker if absent (Debian AND Ubuntu repos - fixes IMPROVEMENTS #4), does the one-time host prep (disables the systemd-resolved stub listener with a marked drop-in, disables systemd-timesyncd, creates `/opt/provider-box`), builds the control-plane image from the checkout, and runs it root + host-network with the docker socket, `/opt/provider-box`, and `/host/etc` mounted. Prints the UI URL. No auth on the UI - trusted lab networks only.
+- `install.sh` at the repo root: the only shell in the v2 model. Installs Docker if absent (Debian AND Ubuntu repos - fixes IMPROVEMENTS #4), does the one-time host prep (disables the systemd-resolved stub listener with a marked drop-in, disables systemd-timesyncd, creates `/opt/labprovider`), builds the control-plane image from the checkout, and runs it root + host-network with the docker socket, `/opt/labprovider`, and `/host/etc` mounted. Prints the UI URL. No auth on the UI - trusted lab networks only.
 - Templates are rendered with Go text/template (`{{.VAR}}`) instead of envsubst, embedded in the binary. A missing variable now fails the render instead of silently producing an empty string. Golden-file parity tests pin the converted templates against the envsubst output of the originals.
 
 ### Changes
-- `SYSLOG_LOG_DIR` default moves to `/opt/provider-box/syslog/logs` (was `/var/log/provider-box`) so the containerized rsyslog and control plane share the `/opt/provider-box` mount. New `CHRONY_DIR` (drift data) and `CHRONY_IMAGE`/`RSYSLOG_IMAGE` variables.
-- The control-plane image is now alpine-based (was scratch) and bundles the pinned docker CLI + compose/buildx plugins; the build context is the repo root so the image carries `provider-box.env.example` for the wizard.
+- `SYSLOG_LOG_DIR` default moves to `/opt/labprovider/syslog/logs` (was `/var/log/labprovider`) so the containerized rsyslog and control plane share the `/opt/labprovider` mount. New `CHRONY_DIR` (drift data) and `CHRONY_IMAGE`/`RSYSLOG_IMAGE` variables.
+- The control-plane image is now alpine-based (was scratch) and bundles the pinned docker CLI + compose/buildx plugins; the build context is the repo root so the image carries `labprovider.env.example` for the wizard.
 
 ---
 
 ## 2026-07-10 (rename services/dashboard to services/control-plane)
 
 ### Changes
-- `services/dashboard` is renamed to `services/control-plane` (git mv; Phase 1 of the Provider Box v2 plan). The service is unchanged functionally - it is still the read-only "current state" dashboard - but it is the foundation the v2 deploy engine and web UI build on.
-- Go module path is now `github.com/dsjodin/provider-box/services/control-plane`; the binary and image are `control-plane` (`CONTROL_PLANE_IMAGE="provider-box/control-plane:0.1.0"`).
-- Every `DASHBOARD_*` variable in `provider-box.env` is renamed to `CONTROL_PLANE_*` (same meanings and defaults; default cert/secrets paths move to `/opt/provider-box/control-plane/...`). `DNS_SYNC_TECHNITIUM_DASHBOARD_USER` and the read-only `dashboard` service accounts in Technitium/NetBox keep their names.
+- `services/dashboard` is renamed to `services/control-plane` (git mv; Phase 1 of the Labprovider v2 plan). The service is unchanged functionally - it is still the read-only "current state" dashboard - but it is the foundation the v2 deploy engine and web UI build on.
+- Go module path is now `github.com/dsjodin/labprovider/services/control-plane`; the binary and image are `control-plane` (`CONTROL_PLANE_IMAGE="labprovider/control-plane:0.1.0"`).
+- Every `DASHBOARD_*` variable in `labprovider.env` is renamed to `CONTROL_PLANE_*` (same meanings and defaults; default cert/secrets paths move to `/opt/labprovider/control-plane/...`). `DNS_SYNC_TECHNITIUM_DASHBOARD_USER` and the read-only `dashboard` service accounts in Technitium/NetBox keep their names.
 - `scripts/issue-dashboard-cert.sh` is renamed to `scripts/issue-cert.sh`; the issued leaf is now `control-plane.crt`/`control-plane.key` (a redeploy reissues it).
 - The `--dashboard` bootstrap flag is unchanged and now deploys the renamed service.
 
@@ -85,9 +85,9 @@ Remaining before the bash deletion (the final v2 step): end-to-end verification 
 
 ### Changes
 - External/custom DNS records now live only in `config/dns.seed` (same `<fqdn> <ip[/cidr]>` format as the removed `config/unbound.records`). `--netbox` imports `config/dns.seed` when the file exists; record-source metadata in NetBox descriptions says `dns.seed`.
-- Dead code dropped from the dispatcher with the backend switch: `unbound_pkgs`, `configure_resolv_conf` (the unconditional resolver takeover with no restore path), `build_dns_record_block`, `build_provider_box_dns_block`, `require_records_file`, `validate_dns_backend`, and `require_dns_backend`.
+- Dead code dropped from the dispatcher with the backend switch: `unbound_pkgs`, `configure_resolv_conf` (the unconditional resolver takeover with no restore path), `build_dns_record_block`, `build_labprovider_dns_block`, `require_records_file`, `validate_dns_backend`, and `require_dns_backend`.
 
-This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a Go control plane replacing the bash bootstrap).
+This is Phase 0 of the Labprovider v2 plan (fully containerized services plus a Go control plane replacing the bash bootstrap).
 
 ---
 
@@ -105,8 +105,8 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 - Generate the dashboard service-user password to satisfy NetBox 4.6's default password validators. An all-lowercase-hex password (`openssl rand -hex`) failed `utilities.password_validation.AlphanumericPasswordValidator` with `400 "Password must have at least one uppercase letter."`, aborting `--netbox`. The password is now `openssl rand -base64` (>= 12 chars for `MinimumLengthValidator`) with a fixed `Aa1!` suffix guaranteeing the required digit/uppercase/lowercase classes; the Technitium dashboard-user password uses the same generator for consistency (Technitium enforces no complexity policy). The password is never stored - the dashboard authenticates with its token, not this password.
 
 ### Changes
-- Refactor the NetBox token housekeeping (retire previous provider-box tokens by description) into `netbox_retire_tokens_by_description`, now shared by the dns-sync and dashboard token provisioners.
-- `--dashboard` now reports the tokens as auto-provisioned by the producing modules (with the operator-override note) instead of describing them as manual-only; the same clarification is applied to `config/provider-box.env.example`. No dashboard service code change was needed: `DASHBOARD_NETBOX_URL`/`DASHBOARD_TECHNITIUM_URL` and the token-file paths were already wired, and the panels already degrade to "not configured" when a token is missing or invalid.
+- Refactor the NetBox token housekeeping (retire previous labprovider tokens by description) into `netbox_retire_tokens_by_description`, now shared by the dns-sync and dashboard token provisioners.
+- `--dashboard` now reports the tokens as auto-provisioned by the producing modules (with the operator-override note) instead of describing them as manual-only; the same clarification is applied to `config/labprovider.env.example`. No dashboard service code change was needed: `DASHBOARD_NETBOX_URL`/`DASHBOARD_TECHNITIUM_URL` and the token-file paths were already wired, and the panels already degrade to "not configured" when a token is missing or invalid.
 
 ---
 
@@ -143,7 +143,7 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 
 ### Features
 - Promote the dashboard to a first-class bootstrap module: `bootstrap/dashboard.sh` with the `--dashboard` flag (and `--dashboard --remove`), following the standard five-step flow (validate `DASHBOARD_*`/CA vars, create the cert and secrets dirs owned by uid 1000, issue the cert, start the stack, verify HTTPS). Cert issuance and startup reuse the service's own `scripts/issue-dashboard-cert.sh` and `scripts/run.sh` rather than duplicating them; the standalone `run.sh` path is unchanged.
-- Publish `DASHBOARD_FQDN` through `provider_box_builtin_fqdns`, so both DNS backends resolve `dashboard.<domain>` to the host IP (unbound renders it directly; technitium via `dns-sync` on its next pass). This makes the dashboard reachable by name.
+- Publish `DASHBOARD_FQDN` through `labprovider_builtin_fqdns`, so both DNS backends resolve `dashboard.<domain>` to the host IP (unbound renders it directly; technitium via `dns-sync` on its next pass). This makes the dashboard reachable by name.
 - Issue the dashboard cert as an explicit full chain (leaf + step-ca intermediate) so the served certificate validates against the step-ca root on its own; `issue-dashboard-cert.sh` now appends the intermediate if `step ca certificate` returned a leaf-only file.
 - Include `--dashboard` in `--all` (last, after the services it reads) and in `--all --remove` (first). Its scoped upstream tokens are optional - the NetBox/Technitium panels degrade to "not configured" - so `--all` stays coherent when they are unset. Add a `--dashboard` row to the module reference and update the env example, dashboard README (both the module and the still-supported standalone path), and IMPROVEMENTS.md #7.
 
@@ -155,7 +155,7 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 - Behavior note: rendered compose files now retain the `${VAR:?...}` mount guards rather than a pre-substituted absolute path, so running `docker compose` on a rendered file manually requires the same environment sourced (the bootstrap modules already source it before every compose call).
 
 ### Features
-- Add `services/dashboard`: a standalone, read-only "current state" view of the Provider Box services (single Go binary serving an HTML page + JSON API, std-lib HTTP, embedded template - matches the existing Go services and needs no frontend framework). Five panels, each isolated behind its own short timeout so a dead or unconfigured source renders "unavailable"/"not configured" without blanking the page: Certificates (step-ca), DNS (Technitium), IPAM (NetBox), Services (Docker), and Recent errors (container log tail)
+- Add `services/dashboard`: a standalone, read-only "current state" view of the Labprovider services (single Go binary serving an HTML page + JSON API, std-lib HTTP, embedded template - matches the existing Go services and needs no frontend framework). Five panels, each isolated behind its own short timeout so a dead or unconfigured source renders "unavailable"/"not configured" without blanking the page: Certificates (step-ca), DNS (Technitium), IPAM (NetBox), Services (Docker), and Recent errors (container log tail)
 - Absorb the design-stage `services/stepca-api` into the dashboard: its reusable step-ca BadgerDB reader is migrated to `services/dashboard/internal/certs` as the Certificates panel (active certs, subjects/SANs, provisioner, notBefore/notAfter, days-to-expiry against a warn threshold); the phase-2 collector parts (SQLite inventory, reconcile loop, token-authed REST API) were dropped as out of v1 scope. `services/stepca-api/` is removed
 - Read paths reuse the shapes the repo already verified: the DNS panel calls the same Technitium endpoints as `dns-sync` (`zones/list`, `zones/records/get`, `settings/get`), the IPAM panel reads NetBox IPAM, and both honor the v1/v2 token formats
 - Serve HTTPS with a step-ca-issued cert for `DASHBOARD_FQDN`; fall back to plaintext HTTP with a logged warning when no cert is configured (lab only)
@@ -165,12 +165,12 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 - v1 ships with no authentication on the UI itself - acceptable only on a trusted internal lab network. Documented as an explicit assumption with a TODO to front it with auth before any non-lab use
 
 ### Notes
-- The dashboard is run manually and is NOT wired into `bootstrap/provider-box.sh` or `--all`. A `--dashboard` bootstrap module, a history/collector, and UI auth are the documented phase 2. Run it with the standalone `services/dashboard/docker-compose.yml`; add the `DASHBOARD_*` block from `config/provider-box.env.example` to your `config/provider-box.env`
+- The dashboard is run manually and is NOT wired into `bootstrap/labprovider.sh` or `--all`. A `--dashboard` bootstrap module, a history/collector, and UI auth are the documented phase 2. Run it with the standalone `services/dashboard/docker-compose.yml`; add the `DASHBOARD_*` block from `config/labprovider.env.example` to your `config/labprovider.env`
 
 ### Dashboard follow-ups (first-deploy fixes)
 - Fix the HTTP fallback: with a `DASHBOARD_TLS_CERT` path set but the cert file missing/unreadable, the server crash-looped on bind instead of falling back. It now validates the cert/key (loads the keypair) before binding, logs a WARNING and serves plaintext HTTP when it cannot, and reports the mode actually chosen in the startup log's `tls` field
 - Add `services/dashboard/scripts/issue-dashboard-cert.sh`: issues the dashboard's TLS leaf cert from step-ca (mirrors the technitium cert-issuance docker run - `--add-host ca:127.0.0.1`, admin provisioner + password file, `--not-after SERVICE_CERT_DURATION`, bundled leaf+chain into `DASHBOARD_CERT_DIR` owned by uid 1000), so HTTPS works on a clean deploy. The cert dir is chowned to uid 1000 BEFORE the run (not only after), so the uid-1000 step-cli container can write into a freshly created root-owned `DASHBOARD_CERT_DIR` instead of failing "permission denied" on a first run
-- Add `services/dashboard/scripts/run.sh`: one correct launch path that runs the documented compose command (`--env-file ../../config/provider-box.env`) with `DASHBOARD_DOCKER_GID` resolved from the host docker group, avoiding the all-blank-vars / invalid-mount failure of a bare `docker compose up`
+- Add `services/dashboard/scripts/run.sh`: one correct launch path that runs the documented compose command (`--env-file ../../config/labprovider.env`) with `DASHBOARD_DOCKER_GID` resolved from the host docker group, avoiding the all-blank-vars / invalid-mount failure of a bare `docker compose up`
 - Document creating the dedicated read-only NetBox and Technitium tokens (view-only IPAM object permission + a read-only API token for NetBox; a non-admin user's token for Technitium) so the DNS/IPAM panels can be enabled without reusing an admin token
 - Downgrade the Certificates panel's BadgerDB dependency from `badger/v4` to `badger/v3` (v3.2103.5) to match step-ca 0.30.2's on-disk format: smallstep CLI 0.30.2 writes a manifest v7 database (badger/v3); a v4 engine (manifest v8) opening it refuses or migrates it, so on a real lab DB the read would fail and blank the panel. The read still opens only a read-only snapshot copy (`WithReadOnly(true)`), so nothing can migrate the live DB regardless. Adds a badger-v3 fixture test that writes a v7-format DB in step-ca's key encoding and reads it back, and an IMPROVEMENTS.md note on the step-ca/badger major-version coupling
 
@@ -205,15 +205,15 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 - Add explicit DNS backend selection via `DNS_BACKEND` (`unbound` or `technitium`, default `unbound`): `--all` deploys only the selected backend, direct backend flags fail fast on a mismatch so the second DNS server cannot land on a converted host, and `--dns-sync` requires the technitium backend
 - Make `config/unbound.records` optional for NetBox: when absent, the import is skipped with a notice instead of failing (the file remains required by the unbound backend, which renders it)
 - Add `DNS_FORWARDER` as the shared upstream forwarder for both DNS backends (falls back to `UNBOUND_FORWARDER` when unset); the technitium backend now configures its upstream forwarder over the settings API on bootstrap and verifies external resolution before pointing the host at itself, so Technitium can act as the sole nameserver for the host and lab
-- Be sure to update your `config/provider-box.env` (new `DNS_BACKEND` and `DNS_FORWARDER` variables).
+- Be sure to update your `config/labprovider.env` (new `DNS_BACKEND` and `DNS_FORWARDER` variables).
 
 ### Fixes
 - Fix `--authentik` failing intermittently on re-run at the brand step with "Failed to determine the default Authentik brand": Authentik rejects even valid API tokens for a few seconds after container start, and `/-/health/ready/` does not imply token-auth readiness. A new authenticated readiness gate polls `GET /api/v3/core/brands/` with the Bearer token (bounded, 401/403 retried within the window) before any brand or blueprint configuration runs, with a timeout message that distinguishes a persistent-data token mismatch from a transient startup delay. Per-attempt curl stderr is also suppressed in the HTTP readiness wait and the certificate verification poll, which previously printed normal "connection reset" and "self-signed certificate" retries as error noise
-- Fix built-in Provider Box service FQDNs (netbox, ca, dns, auth, idp, ...) never reaching the Technitium zone: dns-sync now synthesizes their A records from `provider-box.env` on every reconcile, using the same built-in list as the unbound backend (`provider_box_builtin_fqdns`, which now also covers `AUTHENTIK_FQDN` and skips unset services); they are deliberately not seeded into NetBox because the pinned NetBox enforces global IP uniqueness (verified live: duplicate host-IP objects are rejected without anycast roles), and A-only synthesis keeps `PROVIDER_BOX_FQDN` as the sole PTR target; the post-deploy zone verification now checks every built-in FQDN resolves via Technitium
+- Fix built-in Labprovider service FQDNs (netbox, ca, dns, auth, idp, ...) never reaching the Technitium zone: dns-sync now synthesizes their A records from `labprovider.env` on every reconcile, using the same built-in list as the unbound backend (`labprovider_builtin_fqdns`, which now also covers `AUTHENTIK_FQDN` and skips unset services); they are deliberately not seeded into NetBox because the pinned NetBox enforces global IP uniqueness (verified live: duplicate host-IP objects are rejected without anycast roles), and A-only synthesis keeps `LABPROVIDER_FQDN` as the sole PTR target; the post-deploy zone verification now checks every built-in FQDN resolves via Technitium
 - Fix the long-running dns-sync container failing every reconcile with "connection refused": the `127.0.0.1` extra_hosts pins pointed at the container's own loopback on the default bridge network; the service now runs with `network_mode: host`, matching the module's one-shot docker runs
 - Remove the Technitium forwarder step from `--dns-sync`, which silently overwrote the `DNS_FORWARDER` value the technitium module sets and verifies (one owner per setting); the unused `TECHNITIUM_FORWARDER` variable is removed from the example env
 - Include the NetBox response body (about 200 characters) in dns-sync client errors on non-2xx responses so failures like 403 are diagnosable from logs
-- Auto-provision the dns-sync NetBox token during `--netbox`, mirroring the technitium module's token handling: a stored token at `DNS_SYNC_SECRETS_DIR/netbox.token` is validated live and reused (operator-placed tokens win while valid); otherwise a dedicated token with description "provider-box dns-sync" is provisioned, previous tokens with that description are retired, the composite is validated with one authenticated request, and it is written with the same ownership/permission conventions; skipped with a notice when `DNS_SYNC_SECRETS_DIR` is unset so `--netbox` stays standalone
+- Auto-provision the dns-sync NetBox token during `--netbox`, mirroring the technitium module's token handling: a stored token at `DNS_SYNC_SECRETS_DIR/netbox.token` is validated live and reused (operator-placed tokens win while valid); otherwise a dedicated token with description "labprovider dns-sync" is provisioned, previous tokens with that description are retired, the composite is validated with one authenticated request, and it is written with the same ownership/permission conventions; skipped with a notice when `DNS_SYNC_SECRETS_DIR` is unset so `--netbox` stays standalone
 - Fix Technitium HTTPS never being enabled, which broke the `--dns-sync` HTTPS gate: `--technitium` now converts the step-ca certificate to PKCS#12 (with a generated, persisted bundle password), enables the web service TLS listener via the settings API (`webServiceEnableTls`/`webServiceTlsPort`/`webServiceTlsCertificatePath`/`webServiceTlsCertificatePassword`, verified against 13.4.2), and confirms `https://<DNS_FQDN>:<TECHNITIUM_HTTPS_PORT>` serves the step-ca chain before finishing
 - Replace the "capture the API token from the console" manual step: `--technitium` now creates a non-expiring API token via `/api/user/createToken` and stores it at `DNS_SYNC_SECRETS_DIR/technitium.token` (0600, container uid) where `--dns-sync` expects it, reusing a stored token as long as Technitium still accepts it
 - Fix `--dns-sync` failing at its reachability gates with "Could not resolve host" when the lab zone is not resolvable yet - which is always the case, since dns-sync itself populates the zone: the NetBox and Technitium gates now pin the lab FQDNs to `127.0.0.1` with `curl --resolve`, the one-shot dns-seed containers and the long-running dns-sync container get the same pinning via `--add-host`/`extra_hosts` (Go resolves through `/etc/hosts`, TLS verification stays full against the lab root), and a new post-sync check confirms over real DNS that the zone is actually served after the first reconcile
@@ -237,7 +237,7 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 
 ### Improvements
 - Make shared bootstrap validation service-scoped so unrelated DNS/NTP settings do not block individual services
-- Add early detection for outdated `provider-box.env` files when required variables are missing from the local configuration
+- Add early detection for outdated `labprovider.env` files when required variables are missing from the local configuration
 
 ### Fixes
 - Fix CIDR validation to reject invalid IPv4 prefix lengths and make DNS record parsing handle whitespace consistently
@@ -255,7 +255,7 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 ### Improvements
 - Align Keycloak bootstrap realm defaults with VCF 9, including client settings, redirect URI, and bootstrap user email support.
 - Make the Keycloak bootstrap user part of the default VCF-oriented realm bootstrap
-- Be sure to update your `config/provider-box.env`.
+- Be sure to update your `config/labprovider.env`.
 
 ### Fixes
 - Make certificate handling for step-ca-dependent services identity-aware by reusing valid existing certificates and reissuing only when missing, expired, or mismatched
@@ -267,10 +267,10 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 - Add optional SFTPGo backup-user bootstrap with validation, API-based provisioning, and idempotent create-if-missing behavior
 
 ### Improvements
-- Centralize container image versions in provider-box.env
+- Centralize container image versions in labprovider.env
 - Align default Keycloak bootstrap username with admin
-- Normalize default persistent service paths under `/opt/provider-box`
-- Move default runtime working directory to `/opt/provider-box/runtime`
+- Normalize default persistent service paths under `/opt/labprovider`
+- Move default runtime working directory to `/opt/labprovider/runtime`
 
 ### Fixes
 - Fix depot certificate issuance failure caused by incorrect directory permissions for step-ca
@@ -289,7 +289,7 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 **Release: v0.1.0**
 
 ### Features
-- Initial Provider Box release
+- Initial Labprovider release
 - Add bootstrap support for DNS, NTP, syslog, step-ca, Keycloak, NetBox, SeaweedFS, and SFTPGo
 - Add an nginx-based VCF offline depot service with HTTP and HTTPS support
 - Add step-ca-based certificate handling for containerized HTTPS services
@@ -299,4 +299,4 @@ This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a
 - Improve README structure, service documentation, and architecture overview
 - Add Docker-service remove support for containerized services
 - Improve CA password handling to avoid a repository-shipped static password file
-- Improve NetBox seeding for Provider Box service endpoints
+- Improve NetBox seeding for Labprovider service endpoints

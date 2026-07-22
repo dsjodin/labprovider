@@ -6,7 +6,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /opt/provider-box/runtime/depot/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /opt/provider-box/depot/data:/usr/share/nginx/html:ro
-      - /opt/provider-box/depot/certs:/etc/provider-box/certs:ro
-      - /opt/provider-box/depot/auth:/etc/nginx/auth:ro
+      - /opt/labprovider/runtime/depot/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /opt/labprovider/depot/data:/usr/share/nginx/html:ro
+      - /opt/labprovider/depot/certs:/etc/labprovider/certs:ro
+      - /opt/labprovider/depot/auth:/etc/nginx/auth:ro

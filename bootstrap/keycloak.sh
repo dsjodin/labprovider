@@ -127,7 +127,7 @@ render_keycloak_realm_import() {
   build_keycloak_redirect_uris_json
   build_keycloak_bootstrap_user_block
   install -d -m 0755 "${import_dir}"
-  render_template "${TEMPLATE_DIR}/keycloak-realm.json.tpl" "${import_dir}/provider-box-realm.json"
+  render_template "${TEMPLATE_DIR}/keycloak-realm.json.tpl" "${import_dir}/labprovider-realm.json"
 }
 
 require_ca_ready_for_keycloak() {
@@ -192,7 +192,7 @@ issue_keycloak_certificates() {
   local cert_dir="${KEYCLOAK_DIR}/certs"
   local cert_file="${cert_dir}/keycloak.crt"
   local key_file="${cert_dir}/keycloak.key"
-  local cert_dir_in_container="/etc/provider-box/keycloak-certs"
+  local cert_dir_in_container="/etc/labprovider/keycloak-certs"
   local password_file_in_container="/home/step/${CA_PASSWORD_FILE#${CA_DATA_DIR}/}"
 
   install -d -m 0755 "${WORKDIR}/keycloak" "${cert_dir}" "${KEYCLOAK_DIR}/data"

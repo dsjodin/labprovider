@@ -1,4 +1,4 @@
-// Package envfile parses, validates, and persists the shared provider-box.env
+// Package envfile parses, validates, and persists the shared labprovider.env
 // configuration file that the config wizard edits and the deploy engine reads.
 // Parsing mirrors how bash `source` reads the file's KEY="value" shape; the
 // raw text is stored as uploaded so comments and ordering survive round-trips.
@@ -64,7 +64,7 @@ func MissingFromExample(content, example []byte) []string {
 
 // Store persists the managed config file with atomic replace.
 type Store struct {
-	Path        string // managed provider-box.env
+	Path        string // managed labprovider.env
 	ExamplePath string // shipped example, the wizard's starting template
 }
 
@@ -96,7 +96,7 @@ func (s Store) Save(content []byte) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".provider-box.env.*")
+	tmp, err := os.CreateTemp(dir, ".labprovider.env.*")
 	if err != nil {
 		return err
 	}

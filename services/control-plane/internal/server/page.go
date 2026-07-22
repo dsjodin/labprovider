@@ -4,11 +4,11 @@ import (
 	"html/template"
 	"strings"
 
-	"github.com/dsjodin/provider-box/services/control-plane/internal/certs"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/dns"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/docker"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/ipam"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/logs"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/certs"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/dns"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/docker"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/ipam"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/logs"
 )
 
 // Status is a panel's health for both the template and the JSON API.

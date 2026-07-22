@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${REPO_ROOT}/config/provider-box.env"
-ENV_EXAMPLE_FILE="${REPO_ROOT}/config/provider-box.env.example"
+ENV_FILE="${REPO_ROOT}/config/labprovider.env"
+ENV_EXAMPLE_FILE="${REPO_ROOT}/config/labprovider.env.example"
 RECORDS_FILE="${REPO_ROOT}/config/dns.seed"
 TEMPLATE_DIR="${REPO_ROOT}/templates"
 BOOTSTRAP_DIR="${REPO_ROOT}/bootstrap"
@@ -14,30 +14,30 @@ trap 'echo "Error: command failed on line ${LINENO}. See output above for detail
 usage() {
   cat <<USAGE
 Usage:
-  sudo bash bootstrap/provider-box.sh --ntp
-  sudo bash bootstrap/provider-box.sh --rsyslog
-  sudo bash bootstrap/provider-box.sh --ca
-  sudo bash bootstrap/provider-box.sh --ca --remove
-  sudo bash bootstrap/provider-box.sh --depot
-  sudo bash bootstrap/provider-box.sh --depot --remove
-  sudo bash bootstrap/provider-box.sh --keycloak
-  sudo bash bootstrap/provider-box.sh --keycloak --remove
-  sudo bash bootstrap/provider-box.sh --authentik
-  sudo bash bootstrap/provider-box.sh --authentik --remove
-  sudo bash bootstrap/provider-box.sh --netbox
-  sudo bash bootstrap/provider-box.sh --netbox --remove
-  sudo bash bootstrap/provider-box.sh --s3
-  sudo bash bootstrap/provider-box.sh --s3 --remove
-  sudo bash bootstrap/provider-box.sh --sftp
-  sudo bash bootstrap/provider-box.sh --sftp --remove
-  sudo bash bootstrap/provider-box.sh --technitium
-  sudo bash bootstrap/provider-box.sh --technitium --remove
-  sudo bash bootstrap/provider-box.sh --dns-sync
-  sudo bash bootstrap/provider-box.sh --dns-sync --remove
-  sudo bash bootstrap/provider-box.sh --dashboard
-  sudo bash bootstrap/provider-box.sh --dashboard --remove
-  sudo bash bootstrap/provider-box.sh --all
-  sudo bash bootstrap/provider-box.sh --all --remove
+  sudo bash bootstrap/labprovider.sh --ntp
+  sudo bash bootstrap/labprovider.sh --rsyslog
+  sudo bash bootstrap/labprovider.sh --ca
+  sudo bash bootstrap/labprovider.sh --ca --remove
+  sudo bash bootstrap/labprovider.sh --depot
+  sudo bash bootstrap/labprovider.sh --depot --remove
+  sudo bash bootstrap/labprovider.sh --keycloak
+  sudo bash bootstrap/labprovider.sh --keycloak --remove
+  sudo bash bootstrap/labprovider.sh --authentik
+  sudo bash bootstrap/labprovider.sh --authentik --remove
+  sudo bash bootstrap/labprovider.sh --netbox
+  sudo bash bootstrap/labprovider.sh --netbox --remove
+  sudo bash bootstrap/labprovider.sh --s3
+  sudo bash bootstrap/labprovider.sh --s3 --remove
+  sudo bash bootstrap/labprovider.sh --sftp
+  sudo bash bootstrap/labprovider.sh --sftp --remove
+  sudo bash bootstrap/labprovider.sh --technitium
+  sudo bash bootstrap/labprovider.sh --technitium --remove
+  sudo bash bootstrap/labprovider.sh --dns-sync
+  sudo bash bootstrap/labprovider.sh --dns-sync --remove
+  sudo bash bootstrap/labprovider.sh --dashboard
+  sudo bash bootstrap/labprovider.sh --dashboard --remove
+  sudo bash bootstrap/labprovider.sh --all
+  sudo bash bootstrap/labprovider.sh --all --remove
 
 Note: --all deploys Technitium right after --ca (Technitium needs a step-ca
 certificate) and the read-only dashboard last. --dns-sync is NOT included in
@@ -106,7 +106,7 @@ check_provider_env_is_current() {
     echo "  - ${var}" >&2
   done <<< "${missing_vars}"
   echo "Update ${ENV_FILE} using ${ENV_EXAMPLE_FILE}." >&2
-  echo "Provider Box does not modify ${ENV_FILE} automatically." >&2
+  echo "Labprovider does not modify ${ENV_FILE} automatically." >&2
   exit 1
 }
 
@@ -212,12 +212,12 @@ EOF
     fail "docker compose v2 is required but not available."
 }
 
-# Single source of truth for the built-in Provider Box service FQDNs, consumed
+# Single source of truth for the built-in Labprovider service FQDNs, consumed
 # by the dns-sync built-in record synthesis. Prints one FQDN per line; unset
 # services are skipped.
-provider_box_builtin_fqdns() {
+labprovider_builtin_fqdns() {
   local var
-  for var in PROVIDER_BOX_FQDN DNS_FQDN CA_FQDN DEPOT_FQDN KEYCLOAK_FQDN AUTHENTIK_FQDN NETBOX_FQDN S3_FQDN SFTP_FQDN SYSLOG_FQDN CONTROL_PLANE_FQDN; do
+  for var in LABPROVIDER_FQDN DNS_FQDN CA_FQDN DEPOT_FQDN KEYCLOAK_FQDN AUTHENTIK_FQDN NETBOX_FQDN S3_FQDN SFTP_FQDN SYSLOG_FQDN CONTROL_PLANE_FQDN; do
     [[ -n "${!var:-}" ]] && printf '%s\n' "${!var}"
   done
   return 0

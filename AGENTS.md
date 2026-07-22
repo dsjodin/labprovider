@@ -4,7 +4,7 @@ Agents must also review PROJECT_CONTEXT.md to understand architectural boundarie
 
 ## Purpose
 
-This repository implements "Provider Box": a single-node platform of shared infrastructure services for lab and PoC environments, especially VMware Cloud Foundation (VCF). All services run as Docker Compose stacks, deployed by a Go control plane (`services/control-plane`) that serves a web UI: configuration wizard, service selection + deployment with live progress, and a read-only dashboard.
+This repository implements "Labprovider": a single-node platform of shared infrastructure services for lab and PoC environments, especially VMware Cloud Foundation (VCF). All services run as Docker Compose stacks, deployed by a Go control plane (`services/control-plane`) that serves a web UI: configuration wizard, service selection + deployment with live progress, and a read-only dashboard.
 
 Agents must preserve:
 - simplicity
@@ -30,9 +30,9 @@ Agents must preserve:
 ## Architecture (v2)
 
 - `install.sh` is the only shell: Docker install, one-time host prep (systemd-resolved stub listener, systemd-timesyncd), control-plane image build + run. Everything else is Go.
-- The control plane runs as a root, host-networked, non-privileged container with the docker socket, `/opt/provider-box`, and `/host/etc` mounted. It execs the bundled docker CLI (compose v2) against the host daemon.
+- The control plane runs as a root, host-networked, non-privileged container with the docker socket, `/opt/labprovider`, and `/host/etc` mounted. It execs the bundled docker CLI (compose v2) against the host daemon.
 - The deploy engine (`internal/deploy`) is a static registry of services with explicit dependencies, executed sequentially in dependency order, single-flight, streaming progress over SSE.
-- Configuration is the single flat `provider-box.env`, managed at `/opt/provider-box/control-plane/provider-box.env` by the wizard; the shipped example (`config/provider-box.env.example`) is the schema source of truth and completeness reference. Validation lives in `internal/envfile/schema.go` - one table entry per variable with its validator and the services that require it.
+- Configuration is the single flat `labprovider.env`, managed at `/opt/labprovider/control-plane/labprovider.env` by the wizard; the shipped example (`config/labprovider.env.example`) is the schema source of truth and completeness reference. Validation lives in `internal/envfile/schema.go` - one table entry per variable with its validator and the services that require it.
 - Docker is the source of truth for what is running; `state.json` is advisory deploy history only.
 - The transitional bash bootstrap (`bootstrap/`, `templates/`) still exists until the control-plane path proves parity end-to-end; do not add features to it.
 
@@ -70,8 +70,8 @@ Also required:
 
 ## Environment Model
 
-- All configuration comes from the managed `provider-box.env`
-- Example values (and the completeness reference) in `config/provider-box.env.example`
+- All configuration comes from the managed `labprovider.env`
+- Example values (and the completeness reference) in `config/labprovider.env.example`
 - No hardcoded environment values in deployers
 - Container images are pinned centrally in the env file; never `latest`
 - Reject empty values, invalid FQDNs/IPs/CIDRs/ports/paths, and `CHANGE_ME` placeholders
@@ -81,8 +81,8 @@ Also required:
 ## DNS Integration
 
 - Technitium is the only DNS backend; NetBox is the source of truth, reconciled by dns-sync
-- Every service has an FQDN in `provider-box.env` and appears in `builtinServiceFQDNs` (netbox.go) so dns-sync publishes it
-- `PROVIDER_BOX_FQDN` is the canonical host identity and the sole reverse PTR target for the host IP
+- Every service has an FQDN in `labprovider.env` and appears in `builtinServiceFQDNs` (netbox.go) so dns-sync publishes it
+- `LABPROVIDER_FQDN` is the canonical host identity and the sole reverse PTR target for the host IP
 - The canonical host IP object in NetBox is created explicitly from `HOST_IP`, never from record imports; built-in service FQDNs live in its description
 - External/custom records come only from the managed `dns.seed`
 
@@ -99,7 +99,7 @@ Also required:
 
 ## Filesystem Rules
 
-- Persistent service data under `/opt/provider-box/<service>`; runtime-generated files under `${WORKDIR}` (default `/opt/provider-box/runtime/<service>`)
+- Persistent service data under `/opt/labprovider/<service>`; runtime-generated files under `${WORKDIR}` (default `/opt/labprovider/runtime/<service>`)
 - Never assume global writable paths; create directories explicitly with correct permissions before use
 - Secrets are files with mode 0600 and explicit ownership (uid 1000 for container consumers)
 
@@ -108,7 +108,7 @@ Also required:
 ## Docker / Compose Rules
 
 - Use `docker compose` via the engine's `Compose` runner
-- Explicit image tags (never `latest`), sourced from `provider-box.env`
+- Explicit image tags (never `latest`), sourced from `labprovider.env`
 - Bind mounts for persistence; stacks self-contained per service
 - No orchestration layers, no Kubernetes
 - Locally built images (chrony, rsyslog, dns-sync) build from embedded or image-baked sources; no registry needed

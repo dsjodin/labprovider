@@ -3,7 +3,7 @@ package reconcile
 import (
 	"testing"
 
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/model"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/model"
 )
 
 func TestDiffDedupesDesired(t *testing.T) {

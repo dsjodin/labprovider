@@ -4,7 +4,7 @@
 # host docker group so the read-only socket mount is usable by uid 1000.
 #
 # Usage: services/control-plane/scripts/run.sh [ENV_FILE] [-- extra compose args]
-# ENV_FILE defaults to config/provider-box.env at the repo root.
+# ENV_FILE defaults to config/labprovider.env at the repo root.
 # Example: services/control-plane/scripts/run.sh            # up -d --build
 #          services/control-plane/scripts/run.sh -- down    # stop it
 set -Eeuo pipefail
@@ -18,7 +18,7 @@ fail() {
   exit 1
 }
 
-ENV_FILE="${REPO_ROOT}/config/provider-box.env"
+ENV_FILE="${REPO_ROOT}/config/labprovider.env"
 if [[ "${1:-}" != "" && "${1:-}" != "--" ]]; then
   ENV_FILE="$1"
   shift

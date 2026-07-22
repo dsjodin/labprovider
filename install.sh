@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provider Box installer: the only shell in the v2 model. Installs Docker if
+# Labprovider installer: the only shell in the v2 model. Installs Docker if
 # absent, does the one-time host preparation the containerized control plane
 # cannot do itself (systemd-resolved stub listener, systemd-timesyncd), builds
 # the control-plane image from this checkout, and starts it. Everything else -
@@ -7,8 +7,8 @@
 set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONTROL_PLANE_IMAGE="${CONTROL_PLANE_IMAGE:-provider-box/control-plane:0.1.0}"
-CONTROL_PLANE_NAME="provider-box-control-plane"
+CONTROL_PLANE_IMAGE="${CONTROL_PLANE_IMAGE:-labprovider/control-plane:0.1.0}"
+CONTROL_PLANE_NAME="labprovider-control-plane"
 CONTROL_PLANE_PORT="${CONTROL_PLANE_PORT:-8445}"
 
 fail() {
@@ -67,8 +67,8 @@ prepare_host() {
   if systemctl is-enabled systemd-resolved >/dev/null 2>&1; then
     echo "Disabling the systemd-resolved DNS stub listener (Technitium will own port 53)."
     install -d -m 0755 /etc/systemd/resolved.conf.d
-    cat > /etc/systemd/resolved.conf.d/provider-box.conf <<CONF
-# Managed by Provider Box (install.sh). Remove and restart systemd-resolved to undo.
+    cat > /etc/systemd/resolved.conf.d/labprovider.conf <<CONF
+# Managed by Labprovider (install.sh). Remove and restart systemd-resolved to undo.
 [Resolve]
 DNSStubListener=no
 CONF
@@ -85,7 +85,7 @@ CONF
     systemctl disable --now systemd-timesyncd || true
   fi
 
-  install -d -m 0755 /opt/provider-box /opt/provider-box/control-plane
+  install -d -m 0755 /opt/labprovider /opt/labprovider/control-plane
 }
 
 # --- Build and run the control plane -----------------------------------------
@@ -102,10 +102,10 @@ run_control_plane() {
     --restart unless-stopped \
     --network host \
     -e CONTROL_PLANE_ADDR=":${CONTROL_PLANE_PORT}" \
-    -e CONTROL_PLANE_TLS_CERT="/opt/provider-box/control-plane/certs/control-plane.crt" \
-    -e CONTROL_PLANE_TLS_KEY="/opt/provider-box/control-plane/certs/control-plane.key" \
+    -e CONTROL_PLANE_TLS_CERT="/opt/labprovider/control-plane/certs/control-plane.crt" \
+    -e CONTROL_PLANE_TLS_KEY="/opt/labprovider/control-plane/certs/control-plane.key" \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /opt/provider-box:/opt/provider-box \
+    -v /opt/labprovider:/opt/labprovider \
     -v /etc:/host/etc \
     "${CONTROL_PLANE_IMAGE}" >/dev/null
 }
@@ -116,7 +116,7 @@ run_control_plane
 
 host_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
-echo "Provider Box control plane is running."
+echo "Labprovider control plane is running."
 echo "Open http://${host_ip:-<host-ip>}:${CONTROL_PLANE_PORT}/config to upload your configuration,"
 echo "then http://${host_ip:-<host-ip>}:${CONTROL_PLANE_PORT}/deploy to deploy services."
 echo "The UI has no authentication; use it on a trusted lab network only."

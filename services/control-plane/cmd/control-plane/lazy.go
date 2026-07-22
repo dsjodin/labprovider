@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dsjodin/provider-box/services/control-plane/internal/certs"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/dns"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/envfile"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/ipam"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/certs"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/dns"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/envfile"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/ipam"
 )
 
 // Lazy panel providers for the engine-enabled deployment (install.sh). The
@@ -43,7 +43,7 @@ func (l lazySource) secretsDir(env map[string]string) string {
 	if v := env["CONTROL_PLANE_SECRETS_DIR"]; v != "" {
 		return v
 	}
-	return "/opt/provider-box/control-plane/secrets"
+	return "/opt/labprovider/control-plane/secrets"
 }
 
 func (l lazySource) token(env map[string]string, name, producer string) (string, error) {

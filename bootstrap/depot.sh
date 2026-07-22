@@ -111,7 +111,7 @@ issue_depot_certificates() {
   local cert_dir="${DEPOT_CERT_DIR}"
   local cert_file="${cert_dir}/depot.crt"
   local key_file="${cert_dir}/depot.key"
-  local cert_dir_in_container="/etc/provider-box/depot-certs"
+  local cert_dir_in_container="/etc/labprovider/depot-certs"
   local password_file_in_container="/home/step/${CA_PASSWORD_FILE#${CA_DATA_DIR}/}"
 
   install -d -m 0755 "${cert_dir}"

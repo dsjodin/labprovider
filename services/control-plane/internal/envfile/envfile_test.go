@@ -42,12 +42,12 @@ func TestValidate(t *testing.T) {
 	env := map[string]string{
 		"HOST_IP":       "192.168.12.121/24",
 		"SEARCH_DOMAIN": "sddc.lab",
-		"WORKDIR":       "/opt/provider-box/runtime",
+		"WORKDIR":       "/opt/labprovider/runtime",
 		"S3_FQDN":       "s3.sddc.lab",
 		"S3_PORT":       "8333",
 		"S3_ACCESS_KEY": "CHANGE_ME",
 		"S3_SECRET_KEY": "secret",
-		"S3_DATA_DIR":   "/opt/provider-box/seaweedfs",
+		"S3_DATA_DIR":   "/opt/labprovider/seaweedfs",
 		"S3_IMAGE":      "docker.io/chrislusf/seaweedfs:latest",
 	}
 	issues := Validate(env, []string{"s3"})

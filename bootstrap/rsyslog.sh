@@ -15,8 +15,8 @@ do_rsyslog() {
   common_pkgs
   rsyslog_pkgs
   install -d -m 0755 "${SYSLOG_LOG_DIR}"
-  rm -f /etc/rsyslog.d/provider-box.conf
-  render_template "${TEMPLATE_DIR}/rsyslog.conf.tpl" /etc/rsyslog.d/provider-box.conf
+  rm -f /etc/rsyslog.d/labprovider.conf
+  render_template "${TEMPLATE_DIR}/rsyslog.conf.tpl" /etc/rsyslog.d/labprovider.conf
   require_command rsyslogd
   rsyslogd -N1
   systemctl enable rsyslog

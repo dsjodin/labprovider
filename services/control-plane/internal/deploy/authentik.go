@@ -71,7 +71,7 @@ func (a Authentik) Deploy(ctx context.Context, rc *RunCtx) error {
 	renderEnv := withDerived(env, map[string]string{
 		"AUTHENTIK_BOOTSTRAP_CLIENT_REDIRECT_URIS_BLOCK": blueprint,
 	})
-	if err := Render("authentik-blueprint.yaml.tpl", renderEnv, runtime+"/blueprints/provider-box-vcf.yaml", 0o644); err != nil {
+	if err := Render("authentik-blueprint.yaml.tpl", renderEnv, runtime+"/blueprints/labprovider-vcf.yaml", 0o644); err != nil {
 		return err
 	}
 
@@ -307,13 +307,13 @@ func configureAuthentikBrandCertificate(ctx context.Context, rc *RunCtx, api aut
 	}
 
 	// Re-apply the bootstrap blueprint now that the keypair exists.
-	_, body, err := api.do(ctx, http.MethodGet, api.base()+"/api/v3/managed/blueprints/?search=provider-box-vcf-bootstrap", nil)
+	_, body, err := api.do(ctx, http.MethodGet, api.base()+"/api/v3/managed/blueprints/?search=labprovider-vcf-bootstrap", nil)
 	if err != nil {
 		return err
 	}
 	blueprintPK := firstResult(body, "pk")
 	if blueprintPK == "" {
-		return fmt.Errorf("Authentik did not discover the provider-box-vcf-bootstrap blueprint; check the worker logs")
+		return fmt.Errorf("Authentik did not discover the labprovider-vcf-bootstrap blueprint; check the worker logs")
 	}
 	status, _, err := api.do(ctx, http.MethodPost, api.base()+"/api/v3/managed/blueprints/"+blueprintPK+"/apply/", nil)
 	if err != nil || status != http.StatusOK {

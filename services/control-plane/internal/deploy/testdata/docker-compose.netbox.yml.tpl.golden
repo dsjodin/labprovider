@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: "netbox"
       POSTGRES_PASSWORD: "nbpg"
     volumes:
-      - /opt/provider-box/netbox/postgres:/var/lib/postgresql/data
+      - /opt/labprovider/netbox/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U netbox -d netbox"]
       interval: 15s
@@ -24,7 +24,7 @@ services:
       - --requirepass
       - nbredis
     volumes:
-      - /opt/provider-box/netbox/redis:/data
+      - /opt/labprovider/netbox/redis:/data
 
   netbox:
     image: docker.io/netboxcommunity/netbox:v4.6.2
@@ -54,7 +54,7 @@ services:
       SUPERUSER_PASSWORD: "nbsu"
       SKIP_SUPERUSER: "false"
     volumes:
-      - /opt/provider-box/netbox/media:/opt/netbox/netbox/media
+      - /opt/labprovider/netbox/media:/opt/netbox/netbox/media
 
   netbox-https:
     image: docker.io/library/nginx:1.31-alpine
@@ -64,5 +64,5 @@ services:
     ports:
       - "8444:8443"
     volumes:
-      - /opt/provider-box/netbox/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - /opt/provider-box/netbox/certs:/etc/provider-box/certs:ro
+      - /opt/labprovider/netbox/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /opt/labprovider/netbox/certs:/etc/labprovider/certs:ro

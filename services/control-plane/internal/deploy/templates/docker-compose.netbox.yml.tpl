@@ -65,4 +65,4 @@ services:
       - "{{.NETBOX_PORT}}:8443"
     volumes:
       - {{.NETBOX_DIR}}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - {{.NETBOX_DIR}}/certs:/etc/provider-box/certs:ro
+      - {{.NETBOX_DIR}}/certs:/etc/labprovider/certs:ro

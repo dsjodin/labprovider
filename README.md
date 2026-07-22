@@ -1,6 +1,6 @@
-# Provider Box
+# Labprovider
 
-Provider Box is a lightweight, single-node platform for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
+Labprovider is a lightweight, single-node platform for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
 
 It is designed for lab and proof-of-concept environments, especially VMware Cloud Foundation (VCF). Services (all containerized via Docker Compose):
 
@@ -15,15 +15,15 @@ It is designed for lab and proof-of-concept environments, especially VMware Clou
 - NetBox for IPAM, DCIM, and infrastructure source-of-truth
 - SeaweedFS for S3-compatible object storage
 - SFTPGo for SFTP file transfer
-- The Provider Box control plane: a web UI with a configuration wizard, service selection + deployment with live progress, and a read-only dashboard of everything above
+- The Labprovider control plane: a web UI with a configuration wizard, service selection + deployment with live progress, and a read-only dashboard of everything above
 
-## Provider Box v2: the control plane
+## Labprovider v2: the control plane
 
-The control plane is the primary way to run Provider Box. One script installs it; everything else happens in the browser:
+The control plane is the primary way to run Labprovider. One script installs it; everything else happens in the browser:
 
 ```bash
-git clone https://github.com/dsjodin/provider-box.git
-cd provider-box
+git clone https://github.com/dsjodin/labprovider.git
+cd labprovider
 sudo bash install.sh
 ```
 
@@ -31,11 +31,11 @@ sudo bash install.sh
 
 Then, in the UI:
 
-1. **`/config`** - edit or paste `provider-box.env` (or download it, fill it out locally, and paste it back), validate (every problem is reported at once, per variable), and save. Optional external DNS records (`dns.seed`) are managed on the same page.
+1. **`/config`** - edit or paste `labprovider.env` (or download it, fill it out locally, and paste it back), validate (every problem is reported at once, per variable), and save. Optional external DNS records (`dns.seed`) are managed on the same page.
 2. **`/deploy`** - tick the services you want (dependencies are added automatically), press Deploy, and watch the live log. "Select all" deploys the full catalog in dependency order: chrony, rsyslog, ca, technitium, depot, keycloak, authentik, netbox, s3, sftp, dns-sync.
 3. **`/`** - the dashboard: certificates (step-ca), DNS zones (Technitium), IPAM (NetBox), container state, and recent errors at a glance.
 
-After the CA is deployed the control plane issues its own certificate; restart the container (`docker restart provider-box-control-plane`) to serve the UI over HTTPS.
+After the CA is deployed the control plane issues its own certificate; restart the container (`docker restart labprovider-control-plane`) to serve the UI over HTTPS.
 
 **The UI has no authentication (v1).** Run it on a trusted lab network only.
 
@@ -61,12 +61,12 @@ Ports are the example-config defaults; adjust to your values.
 
 ## Transitional: the bash bootstrap
 
-The original bash bootstrap (`bootstrap/provider-box.sh` plus per-service modules) still works and is documented below. It deploys chrony and rsyslog as host-native systemd services (the control plane runs them containerized) and does not deploy the containerized chrony/rsyslog or the control-plane engine features. It will be removed once the control-plane path has proven parity; new deployments should use `install.sh`.
+The original bash bootstrap (`bootstrap/labprovider.sh` plus per-service modules) still works and is documented below. It deploys chrony and rsyslog as host-native systemd services (the control plane runs them containerized) and does not deploy the containerized chrony/rsyslog or the control-plane engine features. It will be removed once the control-plane path has proven parity; new deployments should use `install.sh`.
 
 ## Overview
 
-![Provider Box Overview](docs/images/provider-box-overview.png)
-*Provider Box v2 architecture: the control plane, the containerized Docker Compose services, the host foundation, and external dependencies.*
+![Labprovider Overview](docs/images/labprovider-overview.png)
+*Labprovider v2 architecture: the control plane, the containerized Docker Compose services, the host foundation, and external dependencies.*
 
 ## Table of Contents
 
@@ -95,23 +95,23 @@ The original bash bootstrap (`bootstrap/provider-box.sh` plus per-service module
 ### 1. Copy the example files
 
 ```bash
-cp config/provider-box.env.example config/provider-box.env
+cp config/labprovider.env.example config/labprovider.env
 ```
 
-Optionally, to publish external/custom DNS records (VCF nodes, gateways, and other non-Provider-Box hosts), copy the seed file. It is imported into NetBox by `--dns-sync` (and by `--netbox` when the file exists), and the reconcile loop then publishes the records via Technitium:
+Optionally, to publish external/custom DNS records (VCF nodes, gateways, and other non-Labprovider hosts), copy the seed file. It is imported into NetBox by `--dns-sync` (and by `--netbox` when the file exists), and the reconcile loop then publishes the records via Technitium:
 
 ```bash
 cp config/dns.seed.example config/dns.seed
 ```
 
-The copy is optional for a minimal deployment. Built-in Provider Box service records never come from this file.
+The copy is optional for a minimal deployment. Built-in Labprovider service records never come from this file.
 
 ### 2. Update configuration files
 
-- `config/provider-box.env` defines all service configuration
+- `config/labprovider.env` defines all service configuration
 - `config/dns.seed` (optional) defines external and custom bring-up records
 
-Built-in Provider Box service FQDNs are generated automatically from the `*_FQDN` values in `provider-box.env`. You do not add built-in service records to `config/dns.seed`.
+Built-in Labprovider service FQDNs are generated automatically from the `*_FQDN` values in `labprovider.env`. You do not add built-in service records to `config/dns.seed`.
 
 ### Quick Password Setup
 
@@ -123,7 +123,7 @@ SECRET_KEY=$(openssl rand -base64 48 | sed 's/[&]/\\&/g') \
 && sed -i \
   -e "s|CHANGE_ME_WITH_AT_LEAST_50_RANDOM_CHARACTERS_BEFORE_USE|$SECRET_KEY|g" \
   -e "s|CHANGE_ME|$PASSWORD|g" \
-  config/provider-box.env
+  config/labprovider.env
 ```
 
 ### 3. Run the bootstrap script
@@ -131,18 +131,18 @@ SECRET_KEY=$(openssl rand -base64 48 | sed 's/[&]/\\&/g') \
 Run only the services you want, or use `--all` to deploy all services in the correct order:
 
 ```bash
-sudo bash bootstrap/provider-box.sh --ntp
-sudo bash bootstrap/provider-box.sh --rsyslog
-sudo bash bootstrap/provider-box.sh --ca
-sudo bash bootstrap/provider-box.sh --technitium
-sudo bash bootstrap/provider-box.sh --depot
-sudo bash bootstrap/provider-box.sh --keycloak
-sudo bash bootstrap/provider-box.sh --authentik
-sudo bash bootstrap/provider-box.sh --netbox
-sudo bash bootstrap/provider-box.sh --dns-sync
-sudo bash bootstrap/provider-box.sh --s3
-sudo bash bootstrap/provider-box.sh --sftp
-sudo bash bootstrap/provider-box.sh --all
+sudo bash bootstrap/labprovider.sh --ntp
+sudo bash bootstrap/labprovider.sh --rsyslog
+sudo bash bootstrap/labprovider.sh --ca
+sudo bash bootstrap/labprovider.sh --technitium
+sudo bash bootstrap/labprovider.sh --depot
+sudo bash bootstrap/labprovider.sh --keycloak
+sudo bash bootstrap/labprovider.sh --authentik
+sudo bash bootstrap/labprovider.sh --netbox
+sudo bash bootstrap/labprovider.sh --dns-sync
+sudo bash bootstrap/labprovider.sh --s3
+sudo bash bootstrap/labprovider.sh --sftp
+sudo bash bootstrap/labprovider.sh --all
 ```
 
 Ordering rules when running services individually:
@@ -153,22 +153,22 @@ Ordering rules when running services individually:
 `--all` deploys Technitium right after the CA (Technitium needs a step-ca certificate). `--dns-sync` is never part of `--all`; run it explicitly after `--all`:
 
 ```bash
-sudo bash bootstrap/provider-box.sh --all
-sudo bash bootstrap/provider-box.sh --dns-sync
+sudo bash bootstrap/labprovider.sh --all
+sudo bash bootstrap/labprovider.sh --dns-sync
 ```
 
 ## Host Assumptions
 
-Provider Box assumes:
+Labprovider assumes:
 
-- Ubuntu or Debian-based host (Provider Box is developed and tested on Debian GNU/Linux 13 (trixie), but should work on recent Ubuntu releases)
+- Ubuntu or Debian-based host (Labprovider is developed and tested on Debian GNU/Linux 13 (trixie), but should work on recent Ubuntu releases)
 - root or `sudo` access
 - static IP and prefix already configured on the host
 - network connectivity from lab consumers to this host
 - access to Debian or Ubuntu package repositories (required packages are installed automatically)
 - access to Docker package repositories (required for containerized services)
 
-Provider Box uses Docker Compose via `docker compose` (Compose v2). Docker installation is idempotent:
+Labprovider uses Docker Compose via `docker compose` (Compose v2). Docker installation is idempotent:
 
 - If Docker with Compose v2 already works, existing Docker packages are left untouched and the `docker` service is enabled
 - If Docker exists but Compose v2 is missing, only `docker-compose-plugin` is installed
@@ -201,12 +201,12 @@ Examples:
 
 - `--netbox` does not require Technitium
 - `--s3` and `--sftp` do not require unrelated service configuration
-- step-ca is an intentional dependency for services that use Provider Box-issued TLS certificates
+- step-ca is an intentional dependency for services that use Labprovider-issued TLS certificates
 - `--dns-sync` intentionally depends on Technitium and NetBox; it is the bridge between them
 
 ## Service Runtime Model
 
-Provider Box uses a mixed runtime model. Host-based services modify the local system and are not managed via `--remove` (they must be removed manually using system package/service management), while Docker-based services are isolated and can be removed using `--remove`.
+Labprovider uses a mixed runtime model. Host-based services modify the local system and are not managed via `--remove` (they must be removed manually using system package/service management), while Docker-based services are isolated and can be removed using `--remove`.
 
 | Service   | Runtime |
 |-----------|---------|
@@ -227,19 +227,19 @@ Provider Box uses a mixed runtime model. Host-based services modify the local sy
 Docker-based services can be removed with `--remove`:
 
 ```bash
-sudo bash bootstrap/provider-box.sh --netbox --remove
-sudo bash bootstrap/provider-box.sh --depot --remove
-sudo bash bootstrap/provider-box.sh --sftp --remove
-sudo bash bootstrap/provider-box.sh --technitium --remove
-sudo bash bootstrap/provider-box.sh --dns-sync --remove
-sudo bash bootstrap/provider-box.sh --all --remove
+sudo bash bootstrap/labprovider.sh --netbox --remove
+sudo bash bootstrap/labprovider.sh --depot --remove
+sudo bash bootstrap/labprovider.sh --sftp --remove
+sudo bash bootstrap/labprovider.sh --technitium --remove
+sudo bash bootstrap/labprovider.sh --dns-sync --remove
+sudo bash bootstrap/labprovider.sh --all --remove
 ```
 
 Removal stops and removes containers with `docker compose down` and deletes generated runtime files under `WORKDIR`. Persistent data directories are preserved. The remove path is idempotent and safe to run multiple times.
 
 When using `--all --remove`, services are removed in reverse dependency order. `--all --remove` covers only the services `--all` always deploys (SFTPGo, S3, NetBox, Authentik, Keycloak, depot, step-ca); remove Technitium and dns-sync explicitly with their own `--remove` flags.
 
-`--technitium --remove` additionally restores the stock host resolver configuration: it deletes the Provider Box `systemd-resolved` drop-in, points `/etc/resolv.conf` back at the `systemd-resolved` stub, and restarts `systemd-resolved`.
+`--technitium --remove` additionally restores the stock host resolver configuration: it deletes the Labprovider `systemd-resolved` drop-in, points `/etc/resolv.conf` back at the `systemd-resolved` stub, and restarts `systemd-resolved`.
 
 Host-based services (`--ntp`, `--rsyslog`) do not support `--remove` and fail fast if it is passed; remove them manually with system package/service management.
 
@@ -247,47 +247,47 @@ See [Module Reference](#module-reference) for exactly what each `--remove` delet
 
 ## Upgrading Services
 
-Container image versions are pinned in `config/provider-box.env` (see [Dependency Updates](#dependency-updates)). To move a containerized service to a new image version, change its `*_IMAGE` pin and redeploy that service; the bootstrap re-runs its configuration idempotently and the persisted data directory carries state forward.
+Container image versions are pinned in `config/labprovider.env` (see [Dependency Updates](#dependency-updates)). To move a containerized service to a new image version, change its `*_IMAGE` pin and redeploy that service; the bootstrap re-runs its configuration idempotently and the persisted data directory carries state forward.
 
-Before a major-version bump, review the upstream project's release notes for breaking changes to the parts Provider Box drives (APIs, settings parameters, data directory format, ports, and the container's user/permissions model), and take a backup of the service's persistent data directory so a rollback is possible.
+Before a major-version bump, review the upstream project's release notes for breaking changes to the parts Labprovider drives (APIs, settings parameters, data directory format, ports, and the container's user/permissions model), and take a backup of the service's persistent data directory so a rollback is possible.
 
 General upgrade procedure for a containerized service:
 
 ```bash
 # 1. Back up the persistent data directory (rollback insurance)
-sudo tar czf /opt/provider-box/<service>-backup-$(date +%F).tgz -C /opt/provider-box <service>
+sudo tar czf /opt/labprovider/<service>-backup-$(date +%F).tgz -C /opt/labprovider <service>
 
-# 2. Update the pinned image version in config/provider-box.env
+# 2. Update the pinned image version in config/labprovider.env
 #    (edit the relevant *_IMAGE line; never use :latest)
 
 # 3. Redeploy the single service
-sudo bash bootstrap/provider-box.sh --<service> --remove
-sudo bash bootstrap/provider-box.sh --<service>
+sudo bash bootstrap/labprovider.sh --<service> --remove
+sudo bash bootstrap/labprovider.sh --<service>
 ```
 
 Rollback: stop the service, restore the pre-upgrade data-directory backup, repin the previous image version, and redeploy.
 
 ### Technitium DNS (13.x -> 15.x)
 
-Reviewed release: `docker.io/technitium/dns-server:15.3.0` (upgrade from `13.4.2`, assessed 2026-07-08). The API surface Provider Box uses (web service TLS settings, `createToken`, forwarder settings, zone/record CRUD), the data directory layout, ports, and the container uid are unchanged or backward-compatible; the query-string token form still works. A 13.x data directory migrates in place on first start of 15.x (existing zones, records, and API tokens are preserved), so the standard redeploy procedure above applies.
+Reviewed release: `docker.io/technitium/dns-server:15.3.0` (upgrade from `13.4.2`, assessed 2026-07-08). The API surface Labprovider uses (web service TLS settings, `createToken`, forwarder settings, zone/record CRUD), the data directory layout, ports, and the container uid are unchanged or backward-compatible; the query-string token form still works. A 13.x data directory migrates in place on first start of 15.x (existing zones, records, and API tokens are preserved), so the standard redeploy procedure above applies.
 
 - **Forward-only.** Once 15.x starts on a data directory it rewrites the `*.config` files; a 15.x data directory must NOT be run under 13.x afterward. Rollback to 13.x requires restoring the pre-upgrade backup taken in step 1 - there is no in-place downgrade.
 - **DNS stays up across the swap.** `--technitium` pre-pulls the pinned image before stopping the running container, so when Technitium is the host resolver the image is already cached when DNS briefly goes down during recreate. If the pull fails, the deploy aborts with the old server still running.
-- **Behavioral deltas that do not affect Provider Box** (documented in `services/dns-sync/TECHNITIUM_API.md`): built-in `internal` reverse zones no longer appear in `zones/list` on 15.x, and deleting a non-existent zone or record now returns an error instead of succeeding silently.
+- **Behavioral deltas that do not affect Labprovider** (documented in `services/dns-sync/TECHNITIUM_API.md`): built-in `internal` reverse zones no longer appear in `zones/list` on 15.x, and deleting a non-existent zone or record now returns an error instead of succeeding silently.
 
 ## Configuration Model
 
-`config/provider-box.env` defines all service configuration.
+`config/labprovider.env` defines all service configuration.
 
 Validation is strict and runs per selected service before deployment changes are made.
 
-Pinned container image versions for Docker-based services are also defined centrally in `config/provider-box.env`.
+Pinned container image versions for Docker-based services are also defined centrally in `config/labprovider.env`.
 
-For step-ca, no repository-shipped password file is required. Provider Box uses `CA_PASSWORD_FILE` when the file exists, materializes `CA_PASSWORD` into a managed `0600` file when set, or generates a random password automatically under `CA_DATA_DIR` when neither input is provided.
+For step-ca, no repository-shipped password file is required. Labprovider uses `CA_PASSWORD_FILE` when the file exists, materializes `CA_PASSWORD` into a managed `0600` file when set, or generates a random password automatically under `CA_DATA_DIR` when neither input is provided.
 
 ### General validation behavior
 
-Provider Box rejects:
+Labprovider rejects:
 
 - empty required values
 - invalid FQDNs
@@ -304,13 +304,13 @@ Provider Box rejects:
 HOST_IP="192.168.12.121/24"
 ```
 
-Provider Box derives the raw host IPv4 address when services need a plain address and preserves the subnet information when it is useful for NetBox IPAM import.
+Labprovider derives the raw host IPv4 address when services need a plain address and preserves the subnet information when it is useful for NetBox IPAM import.
 
-`PROVIDER_BOX_FQDN` defines the canonical host identity for the Provider Box node.
+`LABPROVIDER_FQDN` defines the canonical host identity for the Labprovider node.
 
 This distinction is intentional:
 
-- `PROVIDER_BOX_FQDN` is the canonical host FQDN for the shared Provider Box host IP
+- `LABPROVIDER_FQDN` is the canonical host FQDN for the shared Labprovider host IP
 - service FQDNs such as `DNS_FQDN`, `CA_FQDN`, `DEPOT_FQDN`, `KEYCLOAK_FQDN`, `NETBOX_FQDN`, `S3_FQDN`, `SFTP_FQDN`, and `SYSLOG_FQDN` remain service endpoints on the same host
 
 ### DNS record format
@@ -324,9 +324,9 @@ This distinction is intentional:
 
 Behavior:
 
-- If a record includes CIDR information, Provider Box can derive the surrounding subnet for NetBox
-- If a record includes only a plain IP, Provider Box imports the host address without guessing the subnet
-- Built-in Provider Box service records are generated automatically and should not be duplicated in `config/dns.seed`
+- If a record includes CIDR information, Labprovider can derive the surrounding subnet for NetBox
+- If a record includes only a plain IP, Labprovider imports the host address without guessing the subnet
+- Built-in Labprovider service records are generated automatically and should not be duplicated in `config/dns.seed`
 
 ### DNS model
 
@@ -334,7 +334,7 @@ The `--technitium` module deploys the DNS server, and the `--dns-sync` module im
 
 Technitium forwards external queries to `DNS_FORWARDER`. It applies its default recursion policy, which serves RFC1918 (private) client networks; if the lab uses non-RFC1918 ranges, adjust the recursion access control list in the Technitium console so those clients can resolve.
 
-Built-in Provider Box service records are generated automatically from the `*_FQDN` values in `provider-box.env`: dns-sync synthesizes them into the desired record set on every reconcile. They are not stored in NetBox, which enforces global IP uniqueness and holds a single canonical host IP object (`PROVIDER_BOX_FQDN`); that object also remains the reverse PTR target for the host IP.
+Built-in Labprovider service records are generated automatically from the `*_FQDN` values in `labprovider.env`: dns-sync synthesizes them into the desired record set on every reconcile. They are not stored in NetBox, which enforces global IP uniqueness and holds a single canonical host IP object (`LABPROVIDER_FQDN`); that object also remains the reverse PTR target for the host IP.
 
 ### Template rendering
 
@@ -342,7 +342,7 @@ Environment variables are exported before template rendering so `envsubst` can p
 
 ## Dependency Updates
 
-Container image versions are centrally defined in `config/provider-box.env.example` and kept up to date using Renovate in the Provider Box repository.
+Container image versions are centrally defined in `config/labprovider.env.example` and kept up to date using Renovate in the Labprovider repository.
 
 Users consume updated versions by pulling changes to the repository.
 
@@ -378,10 +378,10 @@ Removal behavior:
 - The container image (`DNS_SYNC_IMAGE`) is built locally from `services/dns-sync` during bootstrap; no registry access is needed
 - Runs with host networking so its `127.0.0.1` pins reach the host-published NetBox and Technitium ports
 - Reconciles every `DNS_SYNC_INTERVAL` (for example `30s`, `5m`, `1h`): one A record per NetBox IP object with a `dns_name`, one PTR per IP (using a deterministically chosen canonical name when several names share an IP), and the built-in service records below
-- Built-in Provider Box service records are synthesized from the `*_FQDN` values in `provider-box.env` on every reconcile pass. They are deliberately not stored in NetBox (NetBox enforces global IP uniqueness; the host IP is one canonical object with `PROVIDER_BOX_FQDN` as `dns_name`), and they are A records only so `PROVIDER_BOX_FQDN` stays the sole PTR target.
+- Built-in Labprovider service records are synthesized from the `*_FQDN` values in `labprovider.env` on every reconcile pass. They are deliberately not stored in NetBox (NetBox enforces global IP uniqueness; the host IP is one canonical object with `LABPROVIDER_FQDN` as `dns_name`), and they are A records only so `LABPROVIDER_FQDN` stays the sole PTR target.
 - Imports `config/dns.seed` into NetBox before starting the loop when the file exists (idempotent; skipped with a notice otherwise)
 - Expects API tokens at `DNS_SYNC_SECRETS_DIR/netbox.token` and `DNS_SYNC_SECRETS_DIR/technitium.token`. Both are auto-provisioned (`--netbox` and `--technitium` respectively); placing decrypted tokens there out of band (for example via SOPS/age) is the operator override and wins while the token stays valid.
-- After the first reconcile, bootstrap verifies over real DNS that `PROVIDER_BOX_FQDN` and every built-in service FQDN resolve via Technitium
+- After the first reconcile, bootstrap verifies over real DNS that `LABPROVIDER_FQDN` and every built-in service FQDN resolve via Technitium
 - Logs: `docker compose -f ${WORKDIR}/dns-sync/docker-compose.yml logs -f`
 
 Removal behavior:
@@ -404,7 +404,7 @@ Removal behavior:
 ### step-ca
 
 - Runs as a single-node Smallstep CA via Docker Compose
-- Acts as the internal PKI for Provider Box services
+- Acts as the internal PKI for Labprovider services
 - Exposed at `https://<CA_FQDN>:<CA_PORT>`
 - Persists data under `CA_DATA_DIR` (keys, `ca.json`) and stores CA state in a
   dedicated PostgreSQL backend (`stepca-postgres`)
@@ -442,7 +442,7 @@ PostgreSQL backend:
 
 Important notes:
 
-- `CA_PASSWORD` is convenient for lab use, but when set in `provider-box.env` it is still stored there in plaintext.
+- `CA_PASSWORD` is convenient for lab use, but when set in `labprovider.env` it is still stored there in plaintext.
 - Reinitialization requires deleting the contents of `CA_DATA_DIR`. `--ca`
   refuses to run against an existing badger-backed CA: Phase 2 rebuilds on
   postgres rather than migrating in place.
@@ -455,11 +455,11 @@ Rebuild + reissue runbook (run on-host; `--ca` does not do the destructive
 steps for you):
 
 1. Stop dependents you are about to reissue, then remove the CA runtime:
-   `sudo bash bootstrap/provider-box.sh --ca --remove`.
+   `sudo bash bootstrap/labprovider.sh --ca --remove`.
 2. Wipe the CA state (lab certs are disposable): remove `CA_DATA_DIR` and
    `CA_POSTGRES_DATA_DIR`. Wiping both keeps the new root and the empty postgres
    store consistent; `--ca` refuses a new root against a non-empty store.
-3. `sudo bash bootstrap/provider-box.sh --ca` - initializes on postgres, enables
+3. `sudo bash bootstrap/labprovider.sh --ca` - initializes on postgres, enables
    CRL, and creates the read-only role.
 4. Reissue every service certificate against the new root, one at a time,
    verifying each before the next. The order is:
@@ -517,7 +517,7 @@ VCF SSO expects the full IdP TLS chain in leaf, intermediate, root order. Use `k
 
 Realm bootstrap:
 
-- Uses a repository-managed realm template derived from a working Keycloak realm export and adapted for Provider Box
+- Uses a repository-managed realm template derived from a working Keycloak realm export and adapted for Labprovider
 - Imports one opinionated initial realm, one bootstrap group, and one baseline OIDC client for VCF-style integration
 - Bootstraps one initial lab user in the bootstrap realm using `KEYCLOAK_BOOTSTRAP_USERNAME`, `KEYCLOAK_BOOTSTRAP_USER_PASSWORD`, and `KEYCLOAK_BOOTSTRAP_USER_EMAIL_DOMAIN`
 - Seeds initial realm state only; it does not provide a generic realm-management framework
@@ -540,7 +540,7 @@ Realm bootstrap:
 Blueprint bootstrap:
 
 - Seeds initial state only; existing objects are not overwritten in ways that discard operator changes (the bootstrap user is created once and left alone afterwards)
-- Changes to bootstrap client settings in `provider-box.env` are re-applied to the provider on subsequent runs
+- Changes to bootstrap client settings in `labprovider.env` are re-applied to the provider on subsequent runs
 
 VCF integration notes:
 
@@ -558,27 +558,27 @@ VCF integration notes:
 - Persists Redis data under `NETBOX_REDIS_DATA_DIR`
 - Uses a step-ca-issued certificate stored under `${NETBOX_DIR}/certs`
 - Bootstraps the initial superuser from `NETBOX_SUPERUSER_*` variables on first start
-- Seeds Provider Box service endpoints into NetBox via the NetBox API after startup
+- Seeds Labprovider service endpoints into NetBox via the NetBox API after startup
 - Imports DNS records from `config/dns.seed` into NetBox via the API during NetBox bootstrap when the file exists (skipped with a notice otherwise)
-- Re-run `sudo bash bootstrap/provider-box.sh --netbox` after changing `config/dns.seed` if you want the changes reflected in NetBox
+- Re-run `sudo bash bootstrap/labprovider.sh --netbox` after changing `config/dns.seed` if you want the changes reflected in NetBox
 
 API tokens (NetBox 4.6):
 
 - NetBox 4.6 hashes API tokens (v2 tokens) and requires a pepper. Bootstrap generates one (or materializes the optional `NETBOX_API_TOKEN_PEPPER`) and persists it at `NETBOX_DIR/secrets/api_token_pepper`, injecting it into the container as `API_TOKEN_PEPPER_1`. The persisted file is authoritative on re-runs. Do not change or delete it once tokens exist: changing the pepper invalidates every existing API token, including the dns-sync token.
 - v2 tokens are used as the composite `nbt_<key>.<token>` with an `Authorization: Bearer` header. The `token` part is only returned at provisioning time. The legacy `Token <key>` header fails against 4.6 with 403 "Invalid v1 token".
-- `--netbox` auto-provisions a dedicated API token for dns-sync (description "provider-box dns-sync") and stores the composite at `DNS_SYNC_SECRETS_DIR/netbox.token` (mode `0600`). A stored, still-valid token is reused, so an operator-placed token (for example decrypted via SOPS/age) wins over auto-provisioning. Provisioning is skipped with a notice when `DNS_SYNC_SECRETS_DIR` is unset, keeping `--netbox` deployable standalone.
+- `--netbox` auto-provisions a dedicated API token for dns-sync (description "labprovider dns-sync") and stores the composite at `DNS_SYNC_SECRETS_DIR/netbox.token` (mode `0600`). A stored, still-valid token is reused, so an operator-placed token (for example decrypted via SOPS/age) wins over auto-provisioning. Provisioning is skipped with a notice when `DNS_SYNC_SECRETS_DIR` is unset, keeping `--netbox` deployable standalone.
 
 IPAM behavior:
 
-- `PROVIDER_BOX_FQDN` is used as the canonical `dns_name` for the shared Provider Box host IP object
-- Built-in Provider Box service FQDNs are stored in that canonical host IP object description
+- `LABPROVIDER_FQDN` is used as the canonical `dns_name` for the shared Labprovider host IP object
+- Built-in Labprovider service FQDNs are stored in that canonical host IP object description
 - Built-in service FQDNs remain service endpoints on the same host
-- The canonical Provider Box host IP object is created explicitly from `HOST_IP` and `PROVIDER_BOX_FQDN`, not from DNS record imports
+- The canonical Labprovider host IP object is created explicitly from `HOST_IP` and `LABPROVIDER_FQDN`, not from DNS record imports
 - Prefix objects are created when CIDR information is available
 - IP address objects use the actual configured mask when CIDR is known, for example `192.168.12.121/24`
 - `/32` is used only when subnet information is not available
 - One NetBox IP address object is created per unique address value
-- Built-in Provider Box service FQDNs share the canonical host IP object instead of creating duplicates
+- Built-in Labprovider service FQDNs share the canonical host IP object instead of creating duplicates
 
 This canonical host-IP model is NetBox seeding behavior only. It does not require Technitium to be deployed.
 
@@ -593,7 +593,7 @@ Bucket creation example for Velero:
 The S3 service must be deployed first:
 
 ```bash
-sudo bash bootstrap/provider-box.sh --s3
+sudo bash bootstrap/labprovider.sh --s3
 ```
 
 Install AWS CLI on macOS:
@@ -609,10 +609,10 @@ sudo apt-get update
 sudo apt-get install -y awscli
 ```
 
-Configure an AWS CLI profile using the S3 credentials from `config/provider-box.env`:
+Configure an AWS CLI profile using the S3 credentials from `config/labprovider.env`:
 
 ```bash
-aws configure --profile provider-box-s3
+aws configure --profile labprovider-s3
 ```
 
 Use:
@@ -627,7 +627,7 @@ Default output format: json
 Create a `velero-backups` bucket:
 
 ```bash
-aws --profile provider-box-s3 \
+aws --profile labprovider-s3 \
   --endpoint-url http://<S3_FQDN>:<S3_PORT> \
   s3api create-bucket \
   --bucket velero-backups
@@ -636,7 +636,7 @@ aws --profile provider-box-s3 \
 Verify the bucket:
 
 ```bash
-aws --profile provider-box-s3 \
+aws --profile labprovider-s3 \
   --endpoint-url http://<S3_FQDN>:<S3_PORT> \
   s3api list-buckets
 ```
@@ -660,7 +660,7 @@ The SFTP protocol service remains separate from the HTTPS UI configuration.
 
 ### Dashboard (read-only)
 
-`services/control-plane` is a **read-only** "current state" view of the Provider Box
+`services/control-plane` is a **read-only** "current state" view of the Labprovider
 services. Deploy it with `--dashboard` (also run by `--all`, last) or run it
 standalone with `services/control-plane/scripts/run.sh` (see
 `services/control-plane/README.md`). It has its own listener and does not alter any
@@ -680,8 +680,8 @@ other service.
   5. Recent errors - a bounded per-container log tail, parsing `dns-sync`'s slog
      JSON for `level>=error`.
 - **How to run it.** Add the `CONTROL_PLANE_*` block from
-  `config/provider-box.env.example` to your `config/provider-box.env`, then
-  `sudo bash bootstrap/provider-box.sh --dashboard` (issues the cert from
+  `config/labprovider.env.example` to your `config/labprovider.env`, then
+  `sudo bash bootstrap/labprovider.sh --dashboard` (issues the cert from
   step-ca, brings up the stack, verifies HTTPS, and publishes `CONTROL_PLANE_FQDN`).
   The scoped read-only tokens are optional - without them the NetBox/Technitium
   panels show "not configured". Standalone use is still supported via
@@ -701,12 +701,12 @@ other service.
 
 ## Module Reference
 
-All flags are passed to `sudo bash bootstrap/provider-box.sh <flag>`. "Depends on" lists other Provider Box modules only; every module also needs `config/provider-box.env`.
+All flags are passed to `sudo bash bootstrap/labprovider.sh <flag>`. "Depends on" lists other Labprovider modules only; every module also needs `config/labprovider.env`.
 
 | Flag | Purpose | Depends on | Data / runtime dirs | Ports | Secrets it creates | `--remove` behavior |
 |------|---------|------------|---------------------|-------|--------------------|---------------------|
 | `--ntp` | Chrony NTP server | none | `/etc/chrony/chrony.conf` | 123/udp | none | not supported |
-| `--rsyslog` | Central syslog collector | none | `SYSLOG_LOG_DIR`, `/etc/rsyslog.d/provider-box.conf` | `SYSLOG_PORT`/udp+tcp | none | not supported |
+| `--rsyslog` | Central syslog collector | none | `SYSLOG_LOG_DIR`, `/etc/rsyslog.d/labprovider.conf` | `SYSLOG_PORT`/udp+tcp | none | not supported |
 | `--ca` | step-ca private CA | none | `CA_DATA_DIR`; runtime under `WORKDIR/step-ca` | `CA_PORT`/tcp | CA password file (`CA_PASSWORD_FILE`) | removes runtime dir; preserves `CA_DATA_DIR` (keys, password) |
 | `--technitium` | Containerized DNS server | `--ca` | `TECHNITIUM_DATA_DIR`, `TECHNITIUM_CERT_DIR`; runtime under `WORKDIR/technitium` | 53/tcp+udp, `TECHNITIUM_HTTP_PORT`/tcp, `TECHNITIUM_HTTPS_PORT`/tcp | pfx password (`TECHNITIUM_CERT_DIR/technitium-pfx-password`), dns-sync API token (`DNS_SYNC_SECRETS_DIR/technitium.token`) | removes runtime dir, restores `systemd-resolved`; preserves data, certs, and token |
 | `--depot` | VCF offline depot (nginx) | `--ca` | `DEPOT_DATA_DIR`, `DEPOT_CERT_DIR`, `DEPOT_AUTH_DIR`; runtime under `WORKDIR/depot` | `DEPOT_HTTP_PORT`/tcp, `DEPOT_HTTPS_PORT`/tcp | `htpasswd` under `DEPOT_AUTH_DIR` | removes runtime dir and `htpasswd`; preserves data and certs |
@@ -726,18 +726,18 @@ Notes:
 
 ## Secrets Inventory
 
-Every secret Provider Box generates or persists, where it lives, and what losing or regenerating it means:
+Every secret Labprovider generates or persists, where it lives, and what losing or regenerating it means:
 
 | Secret | Path | Owner / mode | Created by | Consequence of loss or regeneration |
 |--------|------|--------------|------------|--------------------------------------|
 | CA password | `CA_PASSWORD_FILE` (default `CA_DATA_DIR/secrets/password.txt`) | `1000:1000`, `0600` | `--ca` (from `CA_PASSWORD` or generated) | Without it the CA key cannot be decrypted: step-ca stops starting and no certificates can be issued or renewed. It cannot be regenerated; losing it means reinitializing the CA (delete `CA_DATA_DIR` contents) and re-running every certificate-consuming module, then redistributing the new root certificate. |
 | NetBox API token pepper | `NETBOX_DIR/secrets/api_token_pepper` | root, `0600` | `--netbox` (from optional `NETBOX_API_TOKEN_PEPPER` or generated) | Changing or deleting it invalidates every existing NetBox API token, including the dns-sync token. Recover by re-running `--netbox` (provisions a fresh dns-sync token) and re-issuing any operator tokens. |
-| dns-sync NetBox token | `DNS_SYNC_SECRETS_DIR/netbox.token` (composite `nbt_<key>.<token>`) | `1000:1000`, `0600` | `--netbox` (or operator-placed via SOPS/age) | dns-sync stops reconciling (NetBox reads fail). Re-run `--netbox` to provision a replacement; old tokens with the description "provider-box dns-sync" are retired automatically. |
+| dns-sync NetBox token | `DNS_SYNC_SECRETS_DIR/netbox.token` (composite `nbt_<key>.<token>`) | `1000:1000`, `0600` | `--netbox` (or operator-placed via SOPS/age) | dns-sync stops reconciling (NetBox reads fail). Re-run `--netbox` to provision a replacement; old tokens with the description "labprovider dns-sync" are retired automatically. |
 | dns-sync Technitium token | `DNS_SYNC_SECRETS_DIR/technitium.token` | `1000:1000`, `0600` | `--technitium` (or operator-placed via SOPS/age) | dns-sync stops writing to Technitium. Re-run `--technitium` to provision a replacement (idempotent; a still-valid stored token is reused). |
 | Technitium pfx password | `TECHNITIUM_CERT_DIR/technitium-pfx-password` | `1000:1000`, `0600` | `--technitium` | Needed to rebuild and open `technitium.pfx`. If lost, delete it together with `technitium.pfx` and re-run `--technitium`; a new password and bundle are generated and re-applied via the settings API. |
 | Depot htpasswd | `DEPOT_AUTH_DIR/htpasswd` | root, `0644` | `--depot` (from `DEPOT_BASIC_AUTH_USER`/`_PASSWORD`) | Depot basic auth fails until recreated; regenerated from env on every `--depot` run. |
 
-Secrets that live only in `config/provider-box.env` (admin passwords, `NETBOX_SECRET_KEY`, `AUTHENTIK_SECRET_KEY`, S3 keys, and so on) are the operator's responsibility; the file is gitignored but stored in plaintext on the host.
+Secrets that live only in `config/labprovider.env` (admin passwords, `NETBOX_SECRET_KEY`, `AUTHENTIK_SECRET_KEY`, S3 keys, and so on) are the operator's responsibility; the file is gitignored but stored in plaintext on the host.
 
 ## Troubleshooting
 
@@ -746,7 +746,7 @@ Real failure modes with the messages they produce:
 ### Port 53 is already in use
 
 ```text
-Error: Port 53 is already in use and Provider Box will not stop the holder automatically.
+Error: Port 53 is already in use and Labprovider will not stop the holder automatically.
 ```
 
 `--technitium` preflights port 53. If `systemd-resolved`'s stub listener holds it, the module disables the stub listener automatically; any other holder (a leftover unbound, dnsmasq) must be stopped manually before re-running. Check `ss -lntup 'sport = :53'`.
@@ -767,14 +767,14 @@ NetBox 4.6 rejects the legacy `Token <key>` header (`Invalid v1 token`) and reje
 
 Django only serves hosts listed in `ALLOWED_HOSTS`. `NETBOX_ALLOWED_HOSTS` defaults to the NetBox FQDN only, so `https://<host-ip>:<NETBOX_PORT>/` returns a plain `Bad Request (400)`. Browse by FQDN, or add the IP to `NETBOX_ALLOWED_HOSTS` and re-run `--netbox`.
 
-### provider-box.env appears outdated
+### labprovider.env appears outdated
 
 ```text
-Error: config/provider-box.env appears outdated.
-Missing variables from config/provider-box.env.example:
+Error: config/labprovider.env appears outdated.
+Missing variables from config/labprovider.env.example:
 ```
 
-After pulling a newer checkout, new variables in the example must be added to your local `config/provider-box.env` by hand; Provider Box never modifies it. A mixed-version symptom of the same root cause is a module failing with `Missing required variable: <NAME>` for a variable your env file predates.
+After pulling a newer checkout, new variables in the example must be added to your local `config/labprovider.env` by hand; Labprovider never modifies it. A mixed-version symptom of the same root cause is a module failing with `Missing required variable: <NAME>` for a variable your env file predates.
 
 ### dns-sync reconcile failures
 
@@ -782,7 +782,7 @@ After pulling a newer checkout, new variables in the example must be added to yo
 
 ## VCF Lab Companion
 
-Provider Box provides a lightweight external infrastructure services platform for VMware Cloud Foundation lab and PoC environments.
+Labprovider provides a lightweight external infrastructure services platform for VMware Cloud Foundation lab and PoC environments.
 
 VCF depends on external services that are not provided by the platform itself.
 
@@ -798,13 +798,13 @@ VCF depends on external services that are not provided by the platform itself.
 - certificate authority
 - optional object storage and file transfer services
 
-Provider Box packages these services into a single reproducible node so VCF labs can be built without depending on external enterprise infrastructure.
+Labprovider packages these services into a single reproducible node so VCF labs can be built without depending on external enterprise infrastructure.
 
 This is especially useful in isolated, homelab, and lab environments where the supporting service plane must be self-contained.
 
 ## Design Trade-offs
 
-Provider Box is intentionally single-node and not highly available.
+Labprovider is intentionally single-node and not highly available.
 
 It prioritizes:
 
@@ -831,7 +831,7 @@ bootstrap/
   keycloak.sh
   netbox.sh
   ntp.sh
-  provider-box.sh
+  labprovider.sh
   rsyslog.sh
   s3.sh
   sftp.sh
@@ -839,7 +839,7 @@ bootstrap/
 
 config/
   dns.seed.example
-  provider-box.env.example
+  labprovider.env.example
 
 services/
   dns-sync/       Go source for the dns-sync and dns-seed binaries (image built locally by --dns-sync)
@@ -903,7 +903,7 @@ This keeps deployments predictable and reproducible.
 - Ensure both forward and reverse DNS are configured
 - Import `keycloak-ca-chain.pem` into VCF when configuring OIDC
 - Use `keycloak-ca-roots.pem` only when a roots-only trust bundle is required
-- Built-in Provider Box service DNS records are generated automatically; reserve `config/dns.seed` for external and custom records
+- Built-in Labprovider service DNS records are generated automatically; reserve `config/dns.seed` for external and custom records
 
 ### DNS behavior warning
 
@@ -911,7 +911,7 @@ Deploying DNS takes over host name resolution: `--technitium` disables the `syst
 
 ## Scope
 
-Provider Box focuses on a simple, modular, and reproducible way to deploy shared infrastructure services on a single host for lab and PoC environments.
+Labprovider focuses on a simple, modular, and reproducible way to deploy shared infrastructure services on a single host for lab and PoC environments.
 
 It is intentionally:
 

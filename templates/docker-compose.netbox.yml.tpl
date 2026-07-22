@@ -65,4 +65,4 @@ services:
       - "${NETBOX_PORT}:8443"
     volumes:
       - ${NETBOX_DIR:?NETBOX_DIR must be set (empty would create a blank bind-mount source)}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ${NETBOX_DIR:?NETBOX_DIR must be set (empty would create a blank bind-mount source)}/certs:/etc/provider-box/certs:ro
+      - ${NETBOX_DIR:?NETBOX_DIR must be set (empty would create a blank bind-mount source)}/certs:/etc/labprovider/certs:ro

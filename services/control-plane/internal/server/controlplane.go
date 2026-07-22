@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dsjodin/provider-box/services/control-plane/internal/deploy"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/envfile"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/deploy"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/envfile"
 )
 
 //go:embed templates/wizard.html
@@ -69,9 +69,9 @@ func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("X-Provider-Box-Config-Saved", strconv.FormatBool(saved))
+	w.Header().Set("X-Labprovider-Config-Saved", strconv.FormatBool(saved))
 	if r.URL.Query().Get("download") == "1" {
-		w.Header().Set("Content-Disposition", `attachment; filename="provider-box.env"`)
+		w.Header().Set("Content-Disposition", `attachment; filename="labprovider.env"`)
 	}
 	_, _ = w.Write(content)
 }

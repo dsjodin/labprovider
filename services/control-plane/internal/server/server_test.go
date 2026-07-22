@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dsjodin/provider-box/services/control-plane/internal/certs"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/dns"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/docker"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/ipam"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/certs"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/dns"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/docker"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/ipam"
 )
 
 type stubCerts struct {
@@ -143,7 +143,7 @@ func TestHandlers_Render(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Provider Box") {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Labprovider") {
 		t.Fatalf("index render: code=%d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "Source unavailable") {

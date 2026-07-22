@@ -14,6 +14,6 @@ services:
       - "2022:2022"
       - "8080:8080"
     volumes:
-      - /opt/provider-box/sftpgo/data:/srv/sftpgo
-      - /opt/provider-box/sftpgo/home:/var/lib/sftpgo
-      - /opt/provider-box/sftpgo/certs:/var/lib/sftpgo/certs:ro
+      - /opt/labprovider/sftpgo/data:/srv/sftpgo
+      - /opt/labprovider/sftpgo/home:/var/lib/sftpgo
+      - /opt/labprovider/sftpgo/certs:/var/lib/sftpgo/certs:ro

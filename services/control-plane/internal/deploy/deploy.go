@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dsjodin/provider-box/services/control-plane/internal/envfile"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/envfile"
 )
 
 // Service is one deployable unit. Deploy and Remove must be idempotent.
@@ -28,7 +28,7 @@ type Service interface {
 
 // RunCtx carries everything a deployer needs for one run.
 type RunCtx struct {
-	Env map[string]string // parsed provider-box.env plus derived fields
+	Env map[string]string // parsed labprovider.env plus derived fields
 	Log func(format string, args ...any)
 	eng *Engine
 	svc string

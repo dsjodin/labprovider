@@ -14,4 +14,4 @@ services:
     ports:
       - "8333:8333"
     volumes:
-      - /opt/provider-box/seaweedfs:/data
+      - /opt/labprovider/seaweedfs:/data

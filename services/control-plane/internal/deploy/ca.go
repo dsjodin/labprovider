@@ -59,7 +59,7 @@ func (c CA) Deploy(ctx context.Context, rc *RunCtx) error {
 	if _, err := os.Stat(caJSON); err == nil {
 		hadConfig = true
 		if backend := caConfigDBType(caJSON); backend != "postgresql" {
-			return fmt.Errorf("existing CA at %s uses the '%s' backend; Provider Box runs step-ca on PostgreSQL and does not migrate badger data in place. Remove %s to rebuild (lab certs are disposable), then redeploy every certificate-consuming service", dataDir, backend, dataDir)
+			return fmt.Errorf("existing CA at %s uses the '%s' backend; Labprovider runs step-ca on PostgreSQL and does not migrate badger data in place. Remove %s to rebuild (lab certs are disposable), then redeploy every certificate-consuming service", dataDir, backend, dataDir)
 		}
 	}
 

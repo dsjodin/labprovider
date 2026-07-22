@@ -11,7 +11,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - /opt/provider-box/stepca-postgres:/var/lib/postgresql/data
+      - /opt/labprovider/stepca-postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U stepca -d stepca"]
       interval: 15s
@@ -31,7 +31,7 @@ services:
     extra_hosts:
       - "ca.sddc.lab:127.0.0.1"
     environment:
-      DOCKER_STEPCA_INIT_NAME: "Provider Box CA"
+      DOCKER_STEPCA_INIT_NAME: "Labprovider CA"
       DOCKER_STEPCA_INIT_DNS_NAMES: "ca.sddc.lab"
       DOCKER_STEPCA_INIT_PROVISIONER_NAME: "admin"
       DOCKER_STEPCA_INIT_PASSWORD_FILE: "/home/step/secrets/password.txt"
@@ -42,7 +42,7 @@ services:
     ports:
       - "9000:9000"
     volumes:
-      - /opt/provider-box/step-ca:/home/step
+      - /opt/labprovider/step-ca:/home/step
     healthcheck:
       test: ["CMD-SHELL", "step ca health --ca-url https://ca.sddc.lab:9000 --root /home/step/certs/root_ca.crt | grep '^ok'"]
       interval: 15s
