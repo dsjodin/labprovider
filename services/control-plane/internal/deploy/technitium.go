@@ -393,7 +393,7 @@ func provisionTechnitiumDNSSyncToken(ctx context.Context, rc *RunCtx, api techni
 		}
 		rc.Log("Stored Technitium API token is no longer valid; creating a replacement.")
 	}
-	token, err := api.CreateToken(ctx, adminToken, "admin", "provider-box-dns-sync")
+	token, err := api.CreateUserToken(ctx, "admin", rc.Env["TECHNITIUM_ADMIN_PASSWORD"], "provider-box-dns-sync")
 	if err != nil {
 		return fmt.Errorf("create the dns-sync Technitium token: %w", err)
 	}

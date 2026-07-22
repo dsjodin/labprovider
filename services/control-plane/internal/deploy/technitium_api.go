@@ -99,7 +99,38 @@ func (t technitiumAPI) TokenValid(ctx context.Context, token, probePath string) 
 	return s == "ok"
 }
 
-// CreateToken mints a permanent API token for user with the admin session.
+// tokenField extracts the token from a response, checking both the top level
+// (user/createToken) and the nested response object (admin/sessions/createToken).
+func tokenField(out map[string]any) string {
+	if token, _ := out["token"].(string); token != "" {
+		return token
+	}
+	if resp, _ := out["response"].(map[string]any); resp != nil {
+		if token, _ := resp["token"].(string); token != "" {
+			return token
+		}
+	}
+	return ""
+}
+
+// CreateUserToken mints a permanent API token by authenticating as the user
+// (the verified /api/user/createToken endpoint; see TECHNITIUM_API.md).
+func (t technitiumAPI) CreateUserToken(ctx context.Context, user, pass, tokenName string) (string, error) {
+	out, err := t.callOK(ctx, "/api/user/createToken", url.Values{
+		"user": {user}, "pass": {pass}, "tokenName": {tokenName},
+	})
+	if err != nil {
+		return "", err
+	}
+	token := tokenField(out)
+	if token == "" {
+		return "", fmt.Errorf("user/createToken returned no token (response keys: %v)", keysOf(out))
+	}
+	return token, nil
+}
+
+// CreateToken mints a permanent API token for another user with the admin
+// session (admin/sessions/createToken; the token nests under response).
 func (t technitiumAPI) CreateToken(ctx context.Context, adminToken, user, tokenName string) (string, error) {
 	out, err := t.callOK(ctx, "/api/admin/sessions/createToken", url.Values{
 		"token": {adminToken}, "user": {user}, "tokenName": {tokenName},
@@ -107,11 +138,19 @@ func (t technitiumAPI) CreateToken(ctx context.Context, adminToken, user, tokenN
 	if err != nil {
 		return "", err
 	}
-	token, _ := out["token"].(string)
+	token := tokenField(out)
 	if token == "" {
-		return "", fmt.Errorf("createToken returned no token")
+		return "", fmt.Errorf("admin/sessions/createToken returned no token (response keys: %v)", keysOf(out))
 	}
 	return token, nil
+}
+
+func keysOf(m map[string]any) []string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // UserExists reports whether the user is known.
