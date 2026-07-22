@@ -1,6 +1,6 @@
-# Labprovider Dashboard
+# labprovider Dashboard
 
-A **read-only** "current state" view of the Labprovider services. It queries
+A **read-only** "current state" view of the labprovider services. It queries
 each service's API on request and renders the result. There is no persistent
 store, no history, and no writes to any upstream.
 
@@ -36,7 +36,7 @@ page or fails the request.
 3. **IPAM (NetBox)** - prefix and IP-address counts and the `dns_name`
    inventory. Read with a dedicated, minimum-read-scope token.
 4. **Services (Docker)** - container name, state, health, uptime and image tag
-   for the Labprovider stacks, read from the Docker socket (mounted read-only).
+   for the labprovider stacks, read from the Docker socket (mounted read-only).
 5. **Recent errors (logs)** - the last error-level lines per service from a
    bounded log tail. `dns-sync` emits slog JSON, so `level>=error` is parsed;
    non-JSON lines fall back to a token match.

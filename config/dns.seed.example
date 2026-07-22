@@ -10,7 +10,7 @@
 # Re-applying the seed on a later deploy is safe (idempotent) but the canonical
 # place to change records post-bootstrap is NetBox.
 #
-# Built-in Labprovider service records (DNS, CA, Keycloak, NetBox, S3, SFTP,
+# Built-in labprovider service records (DNS, CA, Keycloak, NetBox, S3, SFTP,
 # Syslog) are generated automatically from config/labprovider.env and must NOT
 # be added here. Use this file only for external infrastructure (VCF nodes,
 # gateways, vCenter, ESXi, etc.).
@@ -19,11 +19,11 @@
 # <fqdn> <ip>
 # <fqdn> <ip/cidr>
 #
-# If you specify <ip/cidr>, Labprovider can derive the surrounding subnet and
+# If you specify <ip/cidr>, labprovider can derive the surrounding subnet and
 # seed a NetBox prefix object in addition to an IP address object using the
 # same subnet mask. The CIDR also drives reverse-zone selection for PTRs.
 #
-# If you specify only <ip>, Labprovider imports the host IP as /32 and does
+# If you specify only <ip>, labprovider imports the host IP as /32 and does
 # not guess the subnet.
 #
 # PTR records are generated automatically by the seed applier.

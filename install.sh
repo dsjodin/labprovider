@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Labprovider installer: the only shell in the v2 model. Installs Docker if
+# labprovider installer: the only shell in the v2 model. Installs Docker if
 # absent, does the one-time host preparation the containerized control plane
 # cannot do itself (systemd-resolved stub listener, systemd-timesyncd), builds
 # the control-plane image from this checkout, and starts it. Everything else -
@@ -68,7 +68,7 @@ prepare_host() {
     echo "Disabling the systemd-resolved DNS stub listener (Technitium will own port 53)."
     install -d -m 0755 /etc/systemd/resolved.conf.d
     cat > /etc/systemd/resolved.conf.d/labprovider.conf <<CONF
-# Managed by Labprovider (install.sh). Remove and restart systemd-resolved to undo.
+# Managed by labprovider (install.sh). Remove and restart systemd-resolved to undo.
 [Resolve]
 DNSStubListener=no
 CONF
@@ -116,7 +116,7 @@ run_control_plane
 
 host_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
-echo "Labprovider control plane is running."
+echo "labprovider control plane is running."
 echo "Open http://${host_ip:-<host-ip>}:${CONTROL_PLANE_PORT}/config to upload your configuration,"
 echo "then http://${host_ip:-<host-ip>}:${CONTROL_PLANE_PORT}/deploy to deploy services."
 echo "The UI has no authentication; use it on a trusted lab network only."

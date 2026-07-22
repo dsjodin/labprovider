@@ -19,7 +19,7 @@ import (
 	"github.com/dsjodin/labprovider/services/dns-sync/internal/technitium"
 )
 
-// sourceWithBuiltins appends the built-in Labprovider service records to the
+// sourceWithBuiltins appends the built-in labprovider service records to the
 // NetBox-derived desired set on every pass. The built-ins cannot live in
 // NetBox as separate IP objects (global IP uniqueness allows only the one
 // canonical host IP object), so they are synthesized from the environment.

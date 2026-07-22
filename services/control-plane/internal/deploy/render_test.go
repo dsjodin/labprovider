@@ -35,7 +35,7 @@ var testEnv = map[string]string{
 	"CA_DATA_DIR":                   "/opt/labprovider/step-ca",
 	"CA_FQDN":                       "ca.sddc.lab",
 	"CA_PORT":                       "9000",
-	"CA_NAME":                       "Labprovider CA",
+	"CA_NAME":                       "labprovider CA",
 	"CA_PROVISIONER_NAME":           "admin",
 	"CA_ENABLE_ACME":                "true",
 	"CA_PASSWORD_FILE_IN_CONTAINER": "/home/step/secrets/password.txt",

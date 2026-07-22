@@ -28,7 +28,7 @@ type Technitium struct{}
 func (Technitium) Name() string   { return "technitium" }
 func (Technitium) Deps() []string { return []string{"ca"} }
 
-const technitiumResolvMarker = "Managed by Labprovider (technitium deploy)"
+const technitiumResolvMarker = "Managed by labprovider (technitium deploy)"
 
 func (t Technitium) Deploy(ctx context.Context, rc *RunCtx) error {
 	env := rc.Env
@@ -307,12 +307,12 @@ func parsePrivateKey(pemBytes []byte) (any, error) {
 func preflightPort53(rc *RunCtx) error {
 	l, err := net.Listen("tcp", ":53")
 	if err != nil {
-		return fmt.Errorf("port 53/tcp is already in use and Labprovider will not stop the holder automatically (a leftover unbound or dnsmasq? if systemd-resolved holds it, re-run install.sh): %w", err)
+		return fmt.Errorf("port 53/tcp is already in use and labprovider will not stop the holder automatically (a leftover unbound or dnsmasq? if systemd-resolved holds it, re-run install.sh): %w", err)
 	}
 	l.Close()
 	u, err := net.ListenPacket("udp", ":53")
 	if err != nil {
-		return fmt.Errorf("port 53/udp is already in use and Labprovider will not stop the holder automatically: %w", err)
+		return fmt.Errorf("port 53/udp is already in use and labprovider will not stop the holder automatically: %w", err)
 	}
 	u.Close()
 	return nil
@@ -429,7 +429,7 @@ func provisionTechnitiumDashboardToken(ctx context.Context, rc *RunCtx, api tech
 			return err
 		}
 		pass := base64.StdEncoding.EncodeToString(raw) + "Aa1!"
-		if err := api.CreateUser(ctx, adminToken, "dashboard", "Labprovider Dashboard", pass); err != nil {
+		if err := api.CreateUser(ctx, adminToken, "dashboard", "labprovider Dashboard", pass); err != nil {
 			return fmt.Errorf("create the Technitium dashboard user: %w", err)
 		}
 	}

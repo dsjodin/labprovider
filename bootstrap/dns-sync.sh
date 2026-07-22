@@ -144,7 +144,7 @@ apply_dns_seed_to_netbox() {
     fail "Failed to import dns.seed into NetBox"
 }
 
-# Built-in Labprovider service FQDNs cannot live in NetBox as separate IP
+# Built-in labprovider service FQDNs cannot live in NetBox as separate IP
 # objects (NetBox enforces global IP uniqueness; the canonical host IP is one
 # object with LABPROVIDER_FQDN as dns_name), so dns-sync synthesizes their A
 # records from the environment on every reconcile pass, via
@@ -214,7 +214,7 @@ verify_dns_sync_builtin_records() {
     [[ -n "${resolved}" ]] || \
       fail "Built-in service record ${fqdn} does not resolve via Technitium. Check 'docker compose logs' under ${WORKDIR}/dns-sync."
   done < <(labprovider_builtin_fqdns)
-  echo "All built-in Labprovider service FQDNs resolve via Technitium."
+  echo "All built-in labprovider service FQDNs resolve via Technitium."
 }
 
 do_dns_sync() {

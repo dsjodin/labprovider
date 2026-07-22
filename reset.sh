@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Reset a Labprovider test host so install.sh can run from a clean slate.
+# Reset a labprovider test host so install.sh can run from a clean slate.
 #
 # Removes ALL Docker state on this host (containers, images, volumes,
-# networks, build cache - not just Labprovider's) and repoints the host
+# networks, build cache - not just labprovider's) and repoints the host
 # resolver at systemd-resolved, since removing the Technitium container
 # while /etc/resolv.conf targets 127.0.0.1 would leave the host without DNS.
 #

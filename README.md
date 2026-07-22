@@ -1,6 +1,6 @@
-# Labprovider
+# labprovider
 
-Labprovider is a lightweight, single-node platform for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
+labprovider is a lightweight, single-node platform for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
 
 It is designed for lab and proof-of-concept environments, especially VMware Cloud Foundation (VCF). Services (all containerized via Docker Compose):
 
@@ -15,11 +15,11 @@ It is designed for lab and proof-of-concept environments, especially VMware Clou
 - NetBox for IPAM, DCIM, and infrastructure source-of-truth
 - SeaweedFS for S3-compatible object storage
 - SFTPGo for SFTP file transfer
-- The Labprovider control plane: a web UI with a configuration wizard, service selection + deployment with live progress, and a read-only dashboard of everything above
+- The labprovider control plane: a web UI with a configuration wizard, service selection + deployment with live progress, and a read-only dashboard of everything above
 
-## Labprovider v2: the control plane
+## labprovider v2: the control plane
 
-The control plane is the primary way to run Labprovider. One script installs it; everything else happens in the browser:
+The control plane is the primary way to run labprovider. One script installs it; everything else happens in the browser:
 
 ```bash
 git clone https://github.com/dsjodin/labprovider.git
@@ -65,8 +65,8 @@ The original bash bootstrap (`bootstrap/labprovider.sh` plus per-service modules
 
 ## Overview
 
-![Labprovider Overview](docs/images/labprovider-overview.png)
-*Labprovider v2 architecture: the control plane, the containerized Docker Compose services, the host foundation, and external dependencies.*
+![labprovider Overview](docs/images/labprovider-overview.png)
+*labprovider v2 architecture: the control plane, the containerized Docker Compose services, the host foundation, and external dependencies.*
 
 ## Table of Contents
 
@@ -98,20 +98,20 @@ The original bash bootstrap (`bootstrap/labprovider.sh` plus per-service modules
 cp config/labprovider.env.example config/labprovider.env
 ```
 
-Optionally, to publish external/custom DNS records (VCF nodes, gateways, and other non-Labprovider hosts), copy the seed file. It is imported into NetBox by `--dns-sync` (and by `--netbox` when the file exists), and the reconcile loop then publishes the records via Technitium:
+Optionally, to publish external/custom DNS records (VCF nodes, gateways, and other non-labprovider hosts), copy the seed file. It is imported into NetBox by `--dns-sync` (and by `--netbox` when the file exists), and the reconcile loop then publishes the records via Technitium:
 
 ```bash
 cp config/dns.seed.example config/dns.seed
 ```
 
-The copy is optional for a minimal deployment. Built-in Labprovider service records never come from this file.
+The copy is optional for a minimal deployment. Built-in labprovider service records never come from this file.
 
 ### 2. Update configuration files
 
 - `config/labprovider.env` defines all service configuration
 - `config/dns.seed` (optional) defines external and custom bring-up records
 
-Built-in Labprovider service FQDNs are generated automatically from the `*_FQDN` values in `labprovider.env`. You do not add built-in service records to `config/dns.seed`.
+Built-in labprovider service FQDNs are generated automatically from the `*_FQDN` values in `labprovider.env`. You do not add built-in service records to `config/dns.seed`.
 
 ### Quick Password Setup
 
@@ -159,16 +159,16 @@ sudo bash bootstrap/labprovider.sh --dns-sync
 
 ## Host Assumptions
 
-Labprovider assumes:
+labprovider assumes:
 
-- Ubuntu or Debian-based host (Labprovider is developed and tested on Debian GNU/Linux 13 (trixie), but should work on recent Ubuntu releases)
+- Ubuntu or Debian-based host (labprovider is developed and tested on Debian GNU/Linux 13 (trixie), but should work on recent Ubuntu releases)
 - root or `sudo` access
 - static IP and prefix already configured on the host
 - network connectivity from lab consumers to this host
 - access to Debian or Ubuntu package repositories (required packages are installed automatically)
 - access to Docker package repositories (required for containerized services)
 
-Labprovider uses Docker Compose via `docker compose` (Compose v2). Docker installation is idempotent:
+labprovider uses Docker Compose via `docker compose` (Compose v2). Docker installation is idempotent:
 
 - If Docker with Compose v2 already works, existing Docker packages are left untouched and the `docker` service is enabled
 - If Docker exists but Compose v2 is missing, only `docker-compose-plugin` is installed
@@ -201,12 +201,12 @@ Examples:
 
 - `--netbox` does not require Technitium
 - `--s3` and `--sftp` do not require unrelated service configuration
-- step-ca is an intentional dependency for services that use Labprovider-issued TLS certificates
+- step-ca is an intentional dependency for services that use labprovider-issued TLS certificates
 - `--dns-sync` intentionally depends on Technitium and NetBox; it is the bridge between them
 
 ## Service Runtime Model
 
-Labprovider uses a mixed runtime model. Host-based services modify the local system and are not managed via `--remove` (they must be removed manually using system package/service management), while Docker-based services are isolated and can be removed using `--remove`.
+labprovider uses a mixed runtime model. Host-based services modify the local system and are not managed via `--remove` (they must be removed manually using system package/service management), while Docker-based services are isolated and can be removed using `--remove`.
 
 | Service   | Runtime |
 |-----------|---------|
@@ -239,7 +239,7 @@ Removal stops and removes containers with `docker compose down` and deletes gene
 
 When using `--all --remove`, services are removed in reverse dependency order. `--all --remove` covers only the services `--all` always deploys (SFTPGo, S3, NetBox, Authentik, Keycloak, depot, step-ca); remove Technitium and dns-sync explicitly with their own `--remove` flags.
 
-`--technitium --remove` additionally restores the stock host resolver configuration: it deletes the Labprovider `systemd-resolved` drop-in, points `/etc/resolv.conf` back at the `systemd-resolved` stub, and restarts `systemd-resolved`.
+`--technitium --remove` additionally restores the stock host resolver configuration: it deletes the labprovider `systemd-resolved` drop-in, points `/etc/resolv.conf` back at the `systemd-resolved` stub, and restarts `systemd-resolved`.
 
 Host-based services (`--ntp`, `--rsyslog`) do not support `--remove` and fail fast if it is passed; remove them manually with system package/service management.
 
@@ -249,7 +249,7 @@ See [Module Reference](#module-reference) for exactly what each `--remove` delet
 
 Container image versions are pinned in `config/labprovider.env` (see [Dependency Updates](#dependency-updates)). To move a containerized service to a new image version, change its `*_IMAGE` pin and redeploy that service; the bootstrap re-runs its configuration idempotently and the persisted data directory carries state forward.
 
-Before a major-version bump, review the upstream project's release notes for breaking changes to the parts Labprovider drives (APIs, settings parameters, data directory format, ports, and the container's user/permissions model), and take a backup of the service's persistent data directory so a rollback is possible.
+Before a major-version bump, review the upstream project's release notes for breaking changes to the parts labprovider drives (APIs, settings parameters, data directory format, ports, and the container's user/permissions model), and take a backup of the service's persistent data directory so a rollback is possible.
 
 General upgrade procedure for a containerized service:
 
@@ -269,11 +269,11 @@ Rollback: stop the service, restore the pre-upgrade data-directory backup, repin
 
 ### Technitium DNS (13.x -> 15.x)
 
-Reviewed release: `docker.io/technitium/dns-server:15.3.0` (upgrade from `13.4.2`, assessed 2026-07-08). The API surface Labprovider uses (web service TLS settings, `createToken`, forwarder settings, zone/record CRUD), the data directory layout, ports, and the container uid are unchanged or backward-compatible; the query-string token form still works. A 13.x data directory migrates in place on first start of 15.x (existing zones, records, and API tokens are preserved), so the standard redeploy procedure above applies.
+Reviewed release: `docker.io/technitium/dns-server:15.3.0` (upgrade from `13.4.2`, assessed 2026-07-08). The API surface labprovider uses (web service TLS settings, `createToken`, forwarder settings, zone/record CRUD), the data directory layout, ports, and the container uid are unchanged or backward-compatible; the query-string token form still works. A 13.x data directory migrates in place on first start of 15.x (existing zones, records, and API tokens are preserved), so the standard redeploy procedure above applies.
 
 - **Forward-only.** Once 15.x starts on a data directory it rewrites the `*.config` files; a 15.x data directory must NOT be run under 13.x afterward. Rollback to 13.x requires restoring the pre-upgrade backup taken in step 1 - there is no in-place downgrade.
 - **DNS stays up across the swap.** `--technitium` pre-pulls the pinned image before stopping the running container, so when Technitium is the host resolver the image is already cached when DNS briefly goes down during recreate. If the pull fails, the deploy aborts with the old server still running.
-- **Behavioral deltas that do not affect Labprovider** (documented in `services/dns-sync/TECHNITIUM_API.md`): built-in `internal` reverse zones no longer appear in `zones/list` on 15.x, and deleting a non-existent zone or record now returns an error instead of succeeding silently.
+- **Behavioral deltas that do not affect labprovider** (documented in `services/dns-sync/TECHNITIUM_API.md`): built-in `internal` reverse zones no longer appear in `zones/list` on 15.x, and deleting a non-existent zone or record now returns an error instead of succeeding silently.
 
 ## Configuration Model
 
@@ -283,11 +283,11 @@ Validation is strict and runs per selected service before deployment changes are
 
 Pinned container image versions for Docker-based services are also defined centrally in `config/labprovider.env`.
 
-For step-ca, no repository-shipped password file is required. Labprovider uses `CA_PASSWORD_FILE` when the file exists, materializes `CA_PASSWORD` into a managed `0600` file when set, or generates a random password automatically under `CA_DATA_DIR` when neither input is provided.
+For step-ca, no repository-shipped password file is required. labprovider uses `CA_PASSWORD_FILE` when the file exists, materializes `CA_PASSWORD` into a managed `0600` file when set, or generates a random password automatically under `CA_DATA_DIR` when neither input is provided.
 
 ### General validation behavior
 
-Labprovider rejects:
+labprovider rejects:
 
 - empty required values
 - invalid FQDNs
@@ -304,13 +304,13 @@ Labprovider rejects:
 HOST_IP="192.168.12.121/24"
 ```
 
-Labprovider derives the raw host IPv4 address when services need a plain address and preserves the subnet information when it is useful for NetBox IPAM import.
+labprovider derives the raw host IPv4 address when services need a plain address and preserves the subnet information when it is useful for NetBox IPAM import.
 
-`LABPROVIDER_FQDN` defines the canonical host identity for the Labprovider node.
+`LABPROVIDER_FQDN` defines the canonical host identity for the labprovider node.
 
 This distinction is intentional:
 
-- `LABPROVIDER_FQDN` is the canonical host FQDN for the shared Labprovider host IP
+- `LABPROVIDER_FQDN` is the canonical host FQDN for the shared labprovider host IP
 - service FQDNs such as `DNS_FQDN`, `CA_FQDN`, `DEPOT_FQDN`, `KEYCLOAK_FQDN`, `NETBOX_FQDN`, `S3_FQDN`, `SFTP_FQDN`, and `SYSLOG_FQDN` remain service endpoints on the same host
 
 ### DNS record format
@@ -324,9 +324,9 @@ This distinction is intentional:
 
 Behavior:
 
-- If a record includes CIDR information, Labprovider can derive the surrounding subnet for NetBox
-- If a record includes only a plain IP, Labprovider imports the host address without guessing the subnet
-- Built-in Labprovider service records are generated automatically and should not be duplicated in `config/dns.seed`
+- If a record includes CIDR information, labprovider can derive the surrounding subnet for NetBox
+- If a record includes only a plain IP, labprovider imports the host address without guessing the subnet
+- Built-in labprovider service records are generated automatically and should not be duplicated in `config/dns.seed`
 
 ### DNS model
 
@@ -334,7 +334,7 @@ The `--technitium` module deploys the DNS server, and the `--dns-sync` module im
 
 Technitium forwards external queries to `DNS_FORWARDER`. It applies its default recursion policy, which serves RFC1918 (private) client networks; if the lab uses non-RFC1918 ranges, adjust the recursion access control list in the Technitium console so those clients can resolve.
 
-Built-in Labprovider service records are generated automatically from the `*_FQDN` values in `labprovider.env`: dns-sync synthesizes them into the desired record set on every reconcile. They are not stored in NetBox, which enforces global IP uniqueness and holds a single canonical host IP object (`LABPROVIDER_FQDN`); that object also remains the reverse PTR target for the host IP.
+Built-in labprovider service records are generated automatically from the `*_FQDN` values in `labprovider.env`: dns-sync synthesizes them into the desired record set on every reconcile. They are not stored in NetBox, which enforces global IP uniqueness and holds a single canonical host IP object (`LABPROVIDER_FQDN`); that object also remains the reverse PTR target for the host IP.
 
 ### Template rendering
 
@@ -342,7 +342,7 @@ Environment variables are exported before template rendering so `envsubst` can p
 
 ## Dependency Updates
 
-Container image versions are centrally defined in `config/labprovider.env.example` and kept up to date using Renovate in the Labprovider repository.
+Container image versions are centrally defined in `config/labprovider.env.example` and kept up to date using Renovate in the labprovider repository.
 
 Users consume updated versions by pulling changes to the repository.
 
@@ -378,7 +378,7 @@ Removal behavior:
 - The container image (`DNS_SYNC_IMAGE`) is built locally from `services/dns-sync` during bootstrap; no registry access is needed
 - Runs with host networking so its `127.0.0.1` pins reach the host-published NetBox and Technitium ports
 - Reconciles every `DNS_SYNC_INTERVAL` (for example `30s`, `5m`, `1h`): one A record per NetBox IP object with a `dns_name`, one PTR per IP (using a deterministically chosen canonical name when several names share an IP), and the built-in service records below
-- Built-in Labprovider service records are synthesized from the `*_FQDN` values in `labprovider.env` on every reconcile pass. They are deliberately not stored in NetBox (NetBox enforces global IP uniqueness; the host IP is one canonical object with `LABPROVIDER_FQDN` as `dns_name`), and they are A records only so `LABPROVIDER_FQDN` stays the sole PTR target.
+- Built-in labprovider service records are synthesized from the `*_FQDN` values in `labprovider.env` on every reconcile pass. They are deliberately not stored in NetBox (NetBox enforces global IP uniqueness; the host IP is one canonical object with `LABPROVIDER_FQDN` as `dns_name`), and they are A records only so `LABPROVIDER_FQDN` stays the sole PTR target.
 - Imports `config/dns.seed` into NetBox before starting the loop when the file exists (idempotent; skipped with a notice otherwise)
 - Expects API tokens at `DNS_SYNC_SECRETS_DIR/netbox.token` and `DNS_SYNC_SECRETS_DIR/technitium.token`. Both are auto-provisioned (`--netbox` and `--technitium` respectively); placing decrypted tokens there out of band (for example via SOPS/age) is the operator override and wins while the token stays valid.
 - After the first reconcile, bootstrap verifies over real DNS that `LABPROVIDER_FQDN` and every built-in service FQDN resolve via Technitium
@@ -404,7 +404,7 @@ Removal behavior:
 ### step-ca
 
 - Runs as a single-node Smallstep CA via Docker Compose
-- Acts as the internal PKI for Labprovider services
+- Acts as the internal PKI for labprovider services
 - Exposed at `https://<CA_FQDN>:<CA_PORT>`
 - Persists data under `CA_DATA_DIR` (keys, `ca.json`) and stores CA state in a
   dedicated PostgreSQL backend (`stepca-postgres`)
@@ -517,7 +517,7 @@ VCF SSO expects the full IdP TLS chain in leaf, intermediate, root order. Use `k
 
 Realm bootstrap:
 
-- Uses a repository-managed realm template derived from a working Keycloak realm export and adapted for Labprovider
+- Uses a repository-managed realm template derived from a working Keycloak realm export and adapted for labprovider
 - Imports one opinionated initial realm, one bootstrap group, and one baseline OIDC client for VCF-style integration
 - Bootstraps one initial lab user in the bootstrap realm using `KEYCLOAK_BOOTSTRAP_USERNAME`, `KEYCLOAK_BOOTSTRAP_USER_PASSWORD`, and `KEYCLOAK_BOOTSTRAP_USER_EMAIL_DOMAIN`
 - Seeds initial realm state only; it does not provide a generic realm-management framework
@@ -558,7 +558,7 @@ VCF integration notes:
 - Persists Redis data under `NETBOX_REDIS_DATA_DIR`
 - Uses a step-ca-issued certificate stored under `${NETBOX_DIR}/certs`
 - Bootstraps the initial superuser from `NETBOX_SUPERUSER_*` variables on first start
-- Seeds Labprovider service endpoints into NetBox via the NetBox API after startup
+- Seeds labprovider service endpoints into NetBox via the NetBox API after startup
 - Imports DNS records from `config/dns.seed` into NetBox via the API during NetBox bootstrap when the file exists (skipped with a notice otherwise)
 - Re-run `sudo bash bootstrap/labprovider.sh --netbox` after changing `config/dns.seed` if you want the changes reflected in NetBox
 
@@ -570,15 +570,15 @@ API tokens (NetBox 4.6):
 
 IPAM behavior:
 
-- `LABPROVIDER_FQDN` is used as the canonical `dns_name` for the shared Labprovider host IP object
-- Built-in Labprovider service FQDNs are stored in that canonical host IP object description
+- `LABPROVIDER_FQDN` is used as the canonical `dns_name` for the shared labprovider host IP object
+- Built-in labprovider service FQDNs are stored in that canonical host IP object description
 - Built-in service FQDNs remain service endpoints on the same host
-- The canonical Labprovider host IP object is created explicitly from `HOST_IP` and `LABPROVIDER_FQDN`, not from DNS record imports
+- The canonical labprovider host IP object is created explicitly from `HOST_IP` and `LABPROVIDER_FQDN`, not from DNS record imports
 - Prefix objects are created when CIDR information is available
 - IP address objects use the actual configured mask when CIDR is known, for example `192.168.12.121/24`
 - `/32` is used only when subnet information is not available
 - One NetBox IP address object is created per unique address value
-- Built-in Labprovider service FQDNs share the canonical host IP object instead of creating duplicates
+- Built-in labprovider service FQDNs share the canonical host IP object instead of creating duplicates
 
 This canonical host-IP model is NetBox seeding behavior only. It does not require Technitium to be deployed.
 
@@ -660,7 +660,7 @@ The SFTP protocol service remains separate from the HTTPS UI configuration.
 
 ### Dashboard (read-only)
 
-`services/control-plane` is a **read-only** "current state" view of the Labprovider
+`services/control-plane` is a **read-only** "current state" view of the labprovider
 services. Deploy it with `--dashboard` (also run by `--all`, last) or run it
 standalone with `services/control-plane/scripts/run.sh` (see
 `services/control-plane/README.md`). It has its own listener and does not alter any
@@ -701,7 +701,7 @@ other service.
 
 ## Module Reference
 
-All flags are passed to `sudo bash bootstrap/labprovider.sh <flag>`. "Depends on" lists other Labprovider modules only; every module also needs `config/labprovider.env`.
+All flags are passed to `sudo bash bootstrap/labprovider.sh <flag>`. "Depends on" lists other labprovider modules only; every module also needs `config/labprovider.env`.
 
 | Flag | Purpose | Depends on | Data / runtime dirs | Ports | Secrets it creates | `--remove` behavior |
 |------|---------|------------|---------------------|-------|--------------------|---------------------|
@@ -726,7 +726,7 @@ Notes:
 
 ## Secrets Inventory
 
-Every secret Labprovider generates or persists, where it lives, and what losing or regenerating it means:
+Every secret labprovider generates or persists, where it lives, and what losing or regenerating it means:
 
 | Secret | Path | Owner / mode | Created by | Consequence of loss or regeneration |
 |--------|------|--------------|------------|--------------------------------------|
@@ -746,7 +746,7 @@ Real failure modes with the messages they produce:
 ### Port 53 is already in use
 
 ```text
-Error: Port 53 is already in use and Labprovider will not stop the holder automatically.
+Error: Port 53 is already in use and labprovider will not stop the holder automatically.
 ```
 
 `--technitium` preflights port 53. If `systemd-resolved`'s stub listener holds it, the module disables the stub listener automatically; any other holder (a leftover unbound, dnsmasq) must be stopped manually before re-running. Check `ss -lntup 'sport = :53'`.
@@ -774,7 +774,7 @@ Error: config/labprovider.env appears outdated.
 Missing variables from config/labprovider.env.example:
 ```
 
-After pulling a newer checkout, new variables in the example must be added to your local `config/labprovider.env` by hand; Labprovider never modifies it. A mixed-version symptom of the same root cause is a module failing with `Missing required variable: <NAME>` for a variable your env file predates.
+After pulling a newer checkout, new variables in the example must be added to your local `config/labprovider.env` by hand; labprovider never modifies it. A mixed-version symptom of the same root cause is a module failing with `Missing required variable: <NAME>` for a variable your env file predates.
 
 ### dns-sync reconcile failures
 
@@ -782,7 +782,7 @@ After pulling a newer checkout, new variables in the example must be added to yo
 
 ## VCF Lab Companion
 
-Labprovider provides a lightweight external infrastructure services platform for VMware Cloud Foundation lab and PoC environments.
+labprovider provides a lightweight external infrastructure services platform for VMware Cloud Foundation lab and PoC environments.
 
 VCF depends on external services that are not provided by the platform itself.
 
@@ -798,13 +798,13 @@ VCF depends on external services that are not provided by the platform itself.
 - certificate authority
 - optional object storage and file transfer services
 
-Labprovider packages these services into a single reproducible node so VCF labs can be built without depending on external enterprise infrastructure.
+labprovider packages these services into a single reproducible node so VCF labs can be built without depending on external enterprise infrastructure.
 
 This is especially useful in isolated, homelab, and lab environments where the supporting service plane must be self-contained.
 
 ## Design Trade-offs
 
-Labprovider is intentionally single-node and not highly available.
+labprovider is intentionally single-node and not highly available.
 
 It prioritizes:
 
@@ -903,7 +903,7 @@ This keeps deployments predictable and reproducible.
 - Ensure both forward and reverse DNS are configured
 - Import `keycloak-ca-chain.pem` into VCF when configuring OIDC
 - Use `keycloak-ca-roots.pem` only when a roots-only trust bundle is required
-- Built-in Labprovider service DNS records are generated automatically; reserve `config/dns.seed` for external and custom records
+- Built-in labprovider service DNS records are generated automatically; reserve `config/dns.seed` for external and custom records
 
 ### DNS behavior warning
 
@@ -911,7 +911,7 @@ Deploying DNS takes over host name resolution: `--technitium` disables the `syst
 
 ## Scope
 
-Labprovider focuses on a simple, modular, and reproducible way to deploy shared infrastructure services on a single host for lab and PoC environments.
+labprovider focuses on a simple, modular, and reproducible way to deploy shared infrastructure services on a single host for lab and PoC environments.
 
 It is intentionally:
 

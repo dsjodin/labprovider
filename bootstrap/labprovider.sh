@@ -106,7 +106,7 @@ check_provider_env_is_current() {
     echo "  - ${var}" >&2
   done <<< "${missing_vars}"
   echo "Update ${ENV_FILE} using ${ENV_EXAMPLE_FILE}." >&2
-  echo "Labprovider does not modify ${ENV_FILE} automatically." >&2
+  echo "labprovider does not modify ${ENV_FILE} automatically." >&2
   exit 1
 }
 
@@ -212,7 +212,7 @@ EOF
     fail "docker compose v2 is required but not available."
 }
 
-# Single source of truth for the built-in Labprovider service FQDNs, consumed
+# Single source of truth for the built-in labprovider service FQDNs, consumed
 # by the dns-sync built-in record synthesis. Prints one FQDN per line; unset
 # services are skipped.
 labprovider_builtin_fqdns() {

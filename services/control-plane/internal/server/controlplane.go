@@ -69,7 +69,7 @@ func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("X-Labprovider-Config-Saved", strconv.FormatBool(saved))
+	w.Header().Set("X-labprovider-Config-Saved", strconv.FormatBool(saved))
 	if r.URL.Query().Get("download") == "1" {
 		w.Header().Set("Content-Disposition", `attachment; filename="labprovider.env"`)
 	}

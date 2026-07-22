@@ -4,7 +4,7 @@ Agents must also review PROJECT_CONTEXT.md to understand architectural boundarie
 
 ## Purpose
 
-This repository implements "Labprovider": a single-node platform of shared infrastructure services for lab and PoC environments, especially VMware Cloud Foundation (VCF). All services run as Docker Compose stacks, deployed by a Go control plane (`services/control-plane`) that serves a web UI: configuration wizard, service selection + deployment with live progress, and a read-only dashboard.
+This repository implements "labprovider": a single-node platform of shared infrastructure services for lab and PoC environments, especially VMware Cloud Foundation (VCF). All services run as Docker Compose stacks, deployed by a Go control plane (`services/control-plane`) that serves a web UI: configuration wizard, service selection + deployment with live progress, and a read-only dashboard.
 
 Agents must preserve:
 - simplicity

@@ -1,6 +1,6 @@
 # LEGACY - scheduled for deletion
 
-This directory is the transitional bash bootstrap (Labprovider v1). It is
+This directory is the transitional bash bootstrap (labprovider v1). It is
 replaced by the Go control plane (`services/control-plane`), installed via
 `install.sh` and operated from the web UI.
 

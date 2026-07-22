@@ -143,7 +143,7 @@ func TestHandlers_Render(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Labprovider") {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "labprovider") {
 		t.Fatalf("index render: code=%d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "Source unavailable") {

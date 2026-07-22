@@ -126,7 +126,7 @@ sftp-admin|${SFTP_FQDN}|tcp|${SFTP_ADMIN_PORT}
 }
 
 build_netbox_labprovider_host_description() {
-  NETBOX_LABPROVIDER_HOST_DESCRIPTION="Labprovider services: ${DNS_FQDN}, ${CA_FQDN}, ${DEPOT_FQDN}, ${KEYCLOAK_FQDN}, ${NETBOX_FQDN}, ${S3_FQDN}, ${SFTP_FQDN}, ${SYSLOG_FQDN}"
+  NETBOX_LABPROVIDER_HOST_DESCRIPTION="labprovider services: ${DNS_FQDN}, ${CA_FQDN}, ${DEPOT_FQDN}, ${KEYCLOAK_FQDN}, ${NETBOX_FQDN}, ${S3_FQDN}, ${SFTP_FQDN}, ${SYSLOG_FQDN}"
   export NETBOX_LABPROVIDER_HOST_DESCRIPTION
 }
 
@@ -662,9 +662,9 @@ ensure_netbox_site() {
   local site_id
   site_id="$(netbox_get_object_id /api/dcim/sites/ "name=Provider%20Box")"
   if [[ -z "${site_id}" ]]; then
-    site_id="$(netbox_create_object /api/dcim/sites/ '{"name":"Labprovider","slug":"labprovider","status":"active"}')"
+    site_id="$(netbox_create_object /api/dcim/sites/ '{"name":"labprovider","slug":"labprovider","status":"active"}')"
   fi
-  [[ -n "${site_id}" ]] || fail "Failed to create or find the Labprovider site in NetBox."
+  [[ -n "${site_id}" ]] || fail "Failed to create or find the labprovider site in NetBox."
   NETBOX_SITE_ID="${site_id}"
 }
 
@@ -672,9 +672,9 @@ ensure_netbox_manufacturer() {
   local manufacturer_id
   manufacturer_id="$(netbox_get_object_id /api/dcim/manufacturers/ "name=Provider%20Box")"
   if [[ -z "${manufacturer_id}" ]]; then
-    manufacturer_id="$(netbox_create_object /api/dcim/manufacturers/ '{"name":"Labprovider","slug":"labprovider"}')"
+    manufacturer_id="$(netbox_create_object /api/dcim/manufacturers/ '{"name":"labprovider","slug":"labprovider"}')"
   fi
-  [[ -n "${manufacturer_id}" ]] || fail "Failed to create or find the Labprovider manufacturer in NetBox."
+  [[ -n "${manufacturer_id}" ]] || fail "Failed to create or find the labprovider manufacturer in NetBox."
   NETBOX_MANUFACTURER_ID="${manufacturer_id}"
 }
 
@@ -682,10 +682,10 @@ ensure_netbox_device_type() {
   local device_type_id payload
   device_type_id="$(netbox_get_object_id /api/dcim/device-types/ "model=Provider%20Box")"
   if [[ -z "${device_type_id}" ]]; then
-    payload="$(printf '{"manufacturer":%s,"model":"Labprovider","slug":"labprovider"}' "${NETBOX_MANUFACTURER_ID}")"
+    payload="$(printf '{"manufacturer":%s,"model":"labprovider","slug":"labprovider"}' "${NETBOX_MANUFACTURER_ID}")"
     device_type_id="$(netbox_create_object /api/dcim/device-types/ "${payload}")"
   fi
-  [[ -n "${device_type_id}" ]] || fail "Failed to create or find the Labprovider device type in NetBox."
+  [[ -n "${device_type_id}" ]] || fail "Failed to create or find the labprovider device type in NetBox."
   NETBOX_DEVICE_TYPE_ID="${device_type_id}"
 }
 
@@ -711,7 +711,7 @@ ensure_netbox_device() {
     netbox_patch_object /api/dcim/devices/ "${device_id}" "${update_payload}"
   fi
 
-  [[ -n "${device_id}" ]] || fail "Failed to create or find the Labprovider device in NetBox."
+  [[ -n "${device_id}" ]] || fail "Failed to create or find the labprovider device in NetBox."
   NETBOX_DEVICE_ID="${device_id}"
 }
 

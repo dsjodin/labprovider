@@ -31,7 +31,7 @@ services:
     extra_hosts:
       - "ca.sddc.lab:127.0.0.1"
     environment:
-      DOCKER_STEPCA_INIT_NAME: "Labprovider CA"
+      DOCKER_STEPCA_INIT_NAME: "labprovider CA"
       DOCKER_STEPCA_INIT_DNS_NAMES: "ca.sddc.lab"
       DOCKER_STEPCA_INIT_PROVISIONER_NAME: "admin"
       DOCKER_STEPCA_INIT_PASSWORD_FILE: "/home/step/secrets/password.txt"

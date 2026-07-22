@@ -132,7 +132,7 @@ func (d DNSSync) Deploy(ctx context.Context, rc *RunCtx) error {
 			return fmt.Errorf("built-in service record %s does not resolve via Technitium (see the log tail above): %w", fqdn, err)
 		}
 	}
-	rc.Log("All built-in Labprovider service FQDNs resolve via Technitium.")
+	rc.Log("All built-in labprovider service FQDNs resolve via Technitium.")
 	rc.Log("dns-sync is running. Reconcile interval: %s.", env["DNS_SYNC_INTERVAL"])
 	return nil
 }

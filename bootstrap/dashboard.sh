@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# The Labprovider dashboard is a standalone, read-only "current state" view of
+# The labprovider dashboard is a standalone, read-only "current state" view of
 # the other services (services/control-plane). This module wires the existing
 # service into bootstrap; it does not rewrite it. Cert issuance and startup
 # reuse the service's own scripts (scripts/issue-cert.sh and

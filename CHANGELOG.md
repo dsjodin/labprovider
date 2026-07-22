@@ -69,7 +69,7 @@ Remaining before the bash deletion (the final v2 step): end-to-end verification 
 ## 2026-07-10 (rename services/dashboard to services/control-plane)
 
 ### Changes
-- `services/dashboard` is renamed to `services/control-plane` (git mv; Phase 1 of the Labprovider v2 plan). The service is unchanged functionally - it is still the read-only "current state" dashboard - but it is the foundation the v2 deploy engine and web UI build on.
+- `services/dashboard` is renamed to `services/control-plane` (git mv; Phase 1 of the labprovider v2 plan). The service is unchanged functionally - it is still the read-only "current state" dashboard - but it is the foundation the v2 deploy engine and web UI build on.
 - Go module path is now `github.com/dsjodin/labprovider/services/control-plane`; the binary and image are `control-plane` (`CONTROL_PLANE_IMAGE="labprovider/control-plane:0.1.0"`).
 - Every `DASHBOARD_*` variable in `labprovider.env` is renamed to `CONTROL_PLANE_*` (same meanings and defaults; default cert/secrets paths move to `/opt/labprovider/control-plane/...`). `DNS_SYNC_TECHNITIUM_DASHBOARD_USER` and the read-only `dashboard` service accounts in Technitium/NetBox keep their names.
 - `scripts/issue-dashboard-cert.sh` is renamed to `scripts/issue-cert.sh`; the issued leaf is now `control-plane.crt`/`control-plane.key` (a redeploy reissues it).
@@ -87,7 +87,7 @@ Remaining before the bash deletion (the final v2 step): end-to-end verification 
 - External/custom DNS records now live only in `config/dns.seed` (same `<fqdn> <ip[/cidr]>` format as the removed `config/unbound.records`). `--netbox` imports `config/dns.seed` when the file exists; record-source metadata in NetBox descriptions says `dns.seed`.
 - Dead code dropped from the dispatcher with the backend switch: `unbound_pkgs`, `configure_resolv_conf` (the unconditional resolver takeover with no restore path), `build_dns_record_block`, `build_labprovider_dns_block`, `require_records_file`, `validate_dns_backend`, and `require_dns_backend`.
 
-This is Phase 0 of the Labprovider v2 plan (fully containerized services plus a Go control plane replacing the bash bootstrap).
+This is Phase 0 of the labprovider v2 plan (fully containerized services plus a Go control plane replacing the bash bootstrap).
 
 ---
 
@@ -155,7 +155,7 @@ This is Phase 0 of the Labprovider v2 plan (fully containerized services plus a 
 - Behavior note: rendered compose files now retain the `${VAR:?...}` mount guards rather than a pre-substituted absolute path, so running `docker compose` on a rendered file manually requires the same environment sourced (the bootstrap modules already source it before every compose call).
 
 ### Features
-- Add `services/dashboard`: a standalone, read-only "current state" view of the Labprovider services (single Go binary serving an HTML page + JSON API, std-lib HTTP, embedded template - matches the existing Go services and needs no frontend framework). Five panels, each isolated behind its own short timeout so a dead or unconfigured source renders "unavailable"/"not configured" without blanking the page: Certificates (step-ca), DNS (Technitium), IPAM (NetBox), Services (Docker), and Recent errors (container log tail)
+- Add `services/dashboard`: a standalone, read-only "current state" view of the labprovider services (single Go binary serving an HTML page + JSON API, std-lib HTTP, embedded template - matches the existing Go services and needs no frontend framework). Five panels, each isolated behind its own short timeout so a dead or unconfigured source renders "unavailable"/"not configured" without blanking the page: Certificates (step-ca), DNS (Technitium), IPAM (NetBox), Services (Docker), and Recent errors (container log tail)
 - Absorb the design-stage `services/stepca-api` into the dashboard: its reusable step-ca BadgerDB reader is migrated to `services/dashboard/internal/certs` as the Certificates panel (active certs, subjects/SANs, provisioner, notBefore/notAfter, days-to-expiry against a warn threshold); the phase-2 collector parts (SQLite inventory, reconcile loop, token-authed REST API) were dropped as out of v1 scope. `services/stepca-api/` is removed
 - Read paths reuse the shapes the repo already verified: the DNS panel calls the same Technitium endpoints as `dns-sync` (`zones/list`, `zones/records/get`, `settings/get`), the IPAM panel reads NetBox IPAM, and both honor the v1/v2 token formats
 - Serve HTTPS with a step-ca-issued cert for `DASHBOARD_FQDN`; fall back to plaintext HTTP with a logged warning when no cert is configured (lab only)
@@ -209,7 +209,7 @@ This is Phase 0 of the Labprovider v2 plan (fully containerized services plus a 
 
 ### Fixes
 - Fix `--authentik` failing intermittently on re-run at the brand step with "Failed to determine the default Authentik brand": Authentik rejects even valid API tokens for a few seconds after container start, and `/-/health/ready/` does not imply token-auth readiness. A new authenticated readiness gate polls `GET /api/v3/core/brands/` with the Bearer token (bounded, 401/403 retried within the window) before any brand or blueprint configuration runs, with a timeout message that distinguishes a persistent-data token mismatch from a transient startup delay. Per-attempt curl stderr is also suppressed in the HTTP readiness wait and the certificate verification poll, which previously printed normal "connection reset" and "self-signed certificate" retries as error noise
-- Fix built-in Labprovider service FQDNs (netbox, ca, dns, auth, idp, ...) never reaching the Technitium zone: dns-sync now synthesizes their A records from `labprovider.env` on every reconcile, using the same built-in list as the unbound backend (`labprovider_builtin_fqdns`, which now also covers `AUTHENTIK_FQDN` and skips unset services); they are deliberately not seeded into NetBox because the pinned NetBox enforces global IP uniqueness (verified live: duplicate host-IP objects are rejected without anycast roles), and A-only synthesis keeps `LABPROVIDER_FQDN` as the sole PTR target; the post-deploy zone verification now checks every built-in FQDN resolves via Technitium
+- Fix built-in labprovider service FQDNs (netbox, ca, dns, auth, idp, ...) never reaching the Technitium zone: dns-sync now synthesizes their A records from `labprovider.env` on every reconcile, using the same built-in list as the unbound backend (`labprovider_builtin_fqdns`, which now also covers `AUTHENTIK_FQDN` and skips unset services); they are deliberately not seeded into NetBox because the pinned NetBox enforces global IP uniqueness (verified live: duplicate host-IP objects are rejected without anycast roles), and A-only synthesis keeps `LABPROVIDER_FQDN` as the sole PTR target; the post-deploy zone verification now checks every built-in FQDN resolves via Technitium
 - Fix the long-running dns-sync container failing every reconcile with "connection refused": the `127.0.0.1` extra_hosts pins pointed at the container's own loopback on the default bridge network; the service now runs with `network_mode: host`, matching the module's one-shot docker runs
 - Remove the Technitium forwarder step from `--dns-sync`, which silently overwrote the `DNS_FORWARDER` value the technitium module sets and verifies (one owner per setting); the unused `TECHNITIUM_FORWARDER` variable is removed from the example env
 - Include the NetBox response body (about 200 characters) in dns-sync client errors on non-2xx responses so failures like 403 are diagnosable from logs
@@ -289,7 +289,7 @@ This is Phase 0 of the Labprovider v2 plan (fully containerized services plus a 
 **Release: v0.1.0**
 
 ### Features
-- Initial Labprovider release
+- Initial labprovider release
 - Add bootstrap support for DNS, NTP, syslog, step-ca, Keycloak, NetBox, SeaweedFS, and SFTPGo
 - Add an nginx-based VCF offline depot service with HTTP and HTTPS support
 - Add step-ca-based certificate handling for containerized HTTPS services
@@ -299,4 +299,4 @@ This is Phase 0 of the Labprovider v2 plan (fully containerized services plus a 
 - Improve README structure, service documentation, and architecture overview
 - Add Docker-service remove support for containerized services
 - Improve CA password handling to avoid a repository-shipped static password file
-- Improve NetBox seeding for Labprovider service endpoints
+- Improve NetBox seeding for labprovider service endpoints

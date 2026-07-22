@@ -201,24 +201,24 @@ func resolveNetboxPepper(rc *RunCtx) (string, error) {
 	return value, nil
 }
 
-// seedNetbox creates the Labprovider inventory: site, manufacturer, device
+// seedNetbox creates the labprovider inventory: site, manufacturer, device
 // type, role, device, the canonical host IP, one service entry per built-in
 // endpoint, and the dns.seed records (one IP object per unique address).
 func seedNetbox(ctx context.Context, rc *RunCtx, api *netboxAPI, records []seedRecord) error {
 	env := rc.Env
 
 	siteID, err := api.ensureObject(ctx, "/api/dcim/sites/", "name=Provider+Box",
-		map[string]any{"name": "Labprovider", "slug": "labprovider", "status": "active"})
+		map[string]any{"name": "labprovider", "slug": "labprovider", "status": "active"})
 	if err != nil {
 		return err
 	}
 	manufacturerID, err := api.ensureObject(ctx, "/api/dcim/manufacturers/", "name=Provider+Box",
-		map[string]any{"name": "Labprovider", "slug": "labprovider"})
+		map[string]any{"name": "labprovider", "slug": "labprovider"})
 	if err != nil {
 		return err
 	}
 	deviceTypeID, err := api.ensureObject(ctx, "/api/dcim/device-types/", "model=Provider+Box",
-		map[string]any{"manufacturer": manufacturerID, "model": "Labprovider", "slug": "labprovider"})
+		map[string]any{"manufacturer": manufacturerID, "model": "labprovider", "slug": "labprovider"})
 	if err != nil {
 		return err
 	}
@@ -249,7 +249,7 @@ func seedNetbox(ctx context.Context, rc *RunCtx, api *netboxAPI, records []seedR
 		return err
 	}
 	_ = prefix
-	description := "Labprovider services: " + strings.Join(builtinServiceFQDNs(env), ", ")
+	description := "labprovider services: " + strings.Join(builtinServiceFQDNs(env), ", ")
 	hostAddr := env["HOST_IP"]
 	hostPayload := map[string]any{"address": hostAddr, "dns_name": env["LABPROVIDER_FQDN"], "status": "active", "description": description}
 	hostIPID, err := api.getObjectID(ctx, "/api/ipam/ip-addresses/", "address="+url.QueryEscape(hostAddr))

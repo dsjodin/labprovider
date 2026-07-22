@@ -10,7 +10,7 @@
         <mxCell id="pb" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="" vertex="1">
           <mxGeometry height="680" width="660" x="560" y="110" as="geometry" />
         </mxCell>
-        <mxCell id="pb-title" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;Labprovider v2&lt;br&gt;Single-node, non-HA design&lt;/font&gt;&lt;/b&gt;" vertex="1">
+        <mxCell id="pb-title" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;labprovider v2&lt;br&gt;Single-node, non-HA design&lt;/font&gt;&lt;/b&gt;" vertex="1">
           <mxGeometry height="34" width="220" x="780" y="122" as="geometry" />
         </mxCell>
         <mxCell id="cp" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#333333;" value="&lt;b&gt;Control plane (web UI)&lt;/b&gt;&lt;br&gt;config wizard, live deploy, read-only dashboard (install.sh)" vertex="1">

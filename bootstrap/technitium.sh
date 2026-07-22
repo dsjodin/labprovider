@@ -200,7 +200,7 @@ render_technitium_stack() {
 # DNS. --technitium --remove restores the stock configuration.
 
 TECHNITIUM_RESOLVED_DROPIN="/etc/systemd/resolved.conf.d/labprovider.conf"
-TECHNITIUM_RESOLV_CONF_MARKER="Managed by Labprovider (--technitium)"
+TECHNITIUM_RESOLV_CONF_MARKER="Managed by labprovider (--technitium)"
 
 verify_host_resolution() {
   local context="$1"
@@ -239,7 +239,7 @@ preflight_technitium_port_53() {
     listeners="$(ss -H -lntup 'sport = :53' 2>/dev/null || true)"
   fi
 
-  [[ -z "${listeners}" ]] || fail "Port 53 is already in use and Labprovider will not stop the holder automatically. Stop the conflicting service (for example a leftover unbound or dnsmasq) and re-run --technitium. Current listeners:
+  [[ -z "${listeners}" ]] || fail "Port 53 is already in use and labprovider will not stop the holder automatically. Stop the conflicting service (for example a leftover unbound or dnsmasq) and re-run --technitium. Current listeners:
 ${listeners}"
 }
 
@@ -476,7 +476,7 @@ provision_technitium_dashboard_token() {
     create_response="$(curl --silent --show-error --get \
       --data-urlencode "token=${admin_token}" \
       --data-urlencode "user=dashboard" \
-      --data-urlencode "displayName=Labprovider Dashboard" \
+      --data-urlencode "displayName=labprovider Dashboard" \
       --data-urlencode "pass=${dash_pass}" \
       "${console_url}/api/admin/users/create" || true)"
     status="$(printf '%s' "${create_response}" | technitium_json_string_field status)"

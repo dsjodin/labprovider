@@ -1,4 +1,4 @@
-# Labprovider — Project Context
+# labprovider — Project Context
 
 This document complements `AGENTS.md`, which defines implementation rules and constraints.
 
@@ -11,7 +11,7 @@ This document complements `AGENTS.md`, which defines implementation rules and co
 
 ## Overview
 
-Labprovider is a small, opinionated infrastructure platform for lab and proof-of-concept environments.
+labprovider is a small, opinionated infrastructure platform for lab and proof-of-concept environments.
 
 It provides a single-node infrastructure services layer supporting VMware Cloud Foundation (VCF) and similar platforms, deployed and observed through a web control plane.
 
@@ -25,7 +25,7 @@ The focus is on:
 
 ## Core Philosophy
 
-Labprovider is intentionally constrained:
+labprovider is intentionally constrained:
 
 - Single node only
 - No orchestration (no Kubernetes)
@@ -196,6 +196,6 @@ Changes should:
 
 ## Summary
 
-Labprovider is:
+labprovider is:
 
 A minimal, reproducible, single-node infrastructure platform for lab environments — fully containerized, driven by a web control plane, prioritizing clarity, simplicity, and controlled dependencies.
