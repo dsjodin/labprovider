@@ -1,24 +1,67 @@
 # Provider Box
 
-Provider Box is a lightweight, single-node bootstrap framework for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
+Provider Box is a lightweight, single-node platform for standing up shared infrastructure services on a single dedicated host. It provides a self-contained infrastructure services layer for lab environments.
 
-It is designed for lab and proof-of-concept environments, especially VMware Cloud Foundation (VCF). It includes bootstrap support for:
+It is designed for lab and proof-of-concept environments, especially VMware Cloud Foundation (VCF). Services (all containerized via Docker Compose):
 
-- DNS via one of two selectable backends: Unbound (host-based) or Technitium (containerized, NetBox-driven)
-- dns-sync for reconciling NetBox IPAM records into Technitium (Technitium backend only)
+- DNS via Technitium (NetBox-driven)
+- dns-sync for reconciling NetBox IPAM records into Technitium
 - Chrony for NTP
 - rsyslog for centralized syslog collection
-- step-ca for a lightweight private certificate authority
+- step-ca for a lightweight private certificate authority (dedicated PostgreSQL backend)
 - VCF offline depot served by nginx
 - Keycloak for identity
 - Authentik for identity federation with OIDC and outbound SCIM 2.0 provisioning
 - NetBox for IPAM, DCIM, and infrastructure source-of-truth
 - SeaweedFS for S3-compatible object storage
 - SFTPGo for SFTP file transfer
+- The Provider Box control plane: a web UI with a configuration wizard, service selection + deployment with live progress, and a read-only dashboard of everything above
 
-The repository is intentionally simple: copy the example configuration, update values for your environment, and run the bootstrap script for the services you need.
+## Provider Box v2: the control plane
 
-`bootstrap/provider-box.sh` is the entrypoint. It loads service-specific modules from `bootstrap/dns.sh`, `bootstrap/ntp.sh`, `bootstrap/rsyslog.sh`, `bootstrap/ca.sh`, `bootstrap/depot.sh`, `bootstrap/keycloak.sh`, `bootstrap/authentik.sh`, `bootstrap/netbox.sh`, `bootstrap/s3.sh`, `bootstrap/sftp.sh`, `bootstrap/technitium.sh`, and `bootstrap/dns-sync.sh`.
+The control plane is the primary way to run Provider Box. One script installs it; everything else happens in the browser:
+
+```bash
+git clone https://github.com/dsjodin/provider-box.git
+cd provider-box
+sudo bash install.sh
+```
+
+`install.sh` installs Docker if absent (Debian and Ubuntu), does the one-time host preparation (disables the systemd-resolved stub listener so Technitium can own port 53, disables systemd-timesyncd because chrony runs containerized), builds the control-plane image from the checkout, and starts it. It prints the UI URL when done (port 8445 by default).
+
+Then, in the UI:
+
+1. **`/config`** - edit or paste `provider-box.env` (or download it, fill it out locally, and paste it back), validate (every problem is reported at once, per variable), and save. Optional external DNS records (`dns.seed`) are managed on the same page.
+2. **`/deploy`** - tick the services you want (dependencies are added automatically), press Deploy, and watch the live log. "Select all" deploys the full catalog in dependency order: chrony, rsyslog, ca, technitium, depot, keycloak, authentik, netbox, s3, sftp, dns-sync.
+3. **`/`** - the dashboard: certificates (step-ca), DNS zones (Technitium), IPAM (NetBox), container state, and recent errors at a glance.
+
+After the CA is deployed the control plane issues its own certificate; restart the container (`docker restart provider-box-control-plane`) to serve the UI over HTTPS.
+
+**The UI has no authentication (v1).** Run it on a trusted lab network only.
+
+### Required open ports
+
+`install.sh` and the control plane do not manage the firewall. If the host runs ufw or similar, open the service ports you deploy:
+
+| Service | Ports |
+|---------|-------|
+| Control plane UI | 8445/tcp |
+| Technitium DNS | 53/tcp+udp, 5380/tcp, 53443/tcp |
+| Chrony | 123/udp |
+| rsyslog | 514/tcp+udp (SYSLOG_PORT) |
+| step-ca | 9000/tcp |
+| Depot | 80/tcp, 443/tcp |
+| Keycloak | 8443/tcp |
+| Authentik | 9443/tcp |
+| NetBox | 8444/tcp |
+| S3 | 8333/tcp |
+| SFTPGo | 2022/tcp, 8080/tcp |
+
+Ports are the example-config defaults; adjust to your values.
+
+## Transitional: the bash bootstrap
+
+The original bash bootstrap (`bootstrap/provider-box.sh` plus per-service modules) still works and is documented below. It deploys chrony and rsyslog as host-native systemd services (the control plane runs them containerized) and does not deploy the containerized chrony/rsyslog or the control-plane engine features. It will be removed once the control-plane path has proven parity; new deployments should use `install.sh`.
 
 ## Overview
 
@@ -55,29 +98,20 @@ The repository is intentionally simple: copy the example configuration, update v
 cp config/provider-box.env.example config/provider-box.env
 ```
 
-Optionally, to publish external/custom DNS records (VCF nodes, gateways, and other non-Provider-Box hosts):
-
-- With `DNS_BACKEND=unbound` (the default), copy the records file. It is required by `--unbound` and optionally imported into NetBox by `--netbox`:
-
-```bash
-cp config/unbound.records.example config/unbound.records
-```
-
-- With `DNS_BACKEND=technitium`, optionally copy the seed file. It is imported into NetBox by `--dns-sync`, and the reconcile loop then publishes the records via Technitium:
+Optionally, to publish external/custom DNS records (VCF nodes, gateways, and other non-Provider-Box hosts), copy the seed file. It is imported into NetBox by `--dns-sync` (and by `--netbox` when the file exists), and the reconcile loop then publishes the records via Technitium:
 
 ```bash
 cp config/dns.seed.example config/dns.seed
 ```
 
-Both copies are optional for a minimal deployment. Built-in Provider Box service records never come from these files.
+The copy is optional for a minimal deployment. Built-in Provider Box service records never come from this file.
 
 ### 2. Update configuration files
 
-- `config/provider-box.env` defines all service configuration, including `DNS_BACKEND` (see [DNS backend selection](#dns-backend-selection))
-- `config/unbound.records` (optional) defines external and custom DNS records for the unbound backend
-- `config/dns.seed` (optional) defines external and custom bring-up records for the technitium backend
+- `config/provider-box.env` defines all service configuration
+- `config/dns.seed` (optional) defines external and custom bring-up records
 
-Built-in Provider Box service FQDNs are generated automatically from the `*_FQDN` values in `provider-box.env` under both backends. You do not add built-in service records to `config/unbound.records` or `config/dns.seed`.
+Built-in Provider Box service FQDNs are generated automatically from the `*_FQDN` values in `provider-box.env`. You do not add built-in service records to `config/dns.seed`.
 
 ### Quick Password Setup
 
@@ -97,7 +131,6 @@ SECRET_KEY=$(openssl rand -base64 48 | sed 's/[&]/\\&/g') \
 Run only the services you want, or use `--all` to deploy all services in the correct order:
 
 ```bash
-sudo bash bootstrap/provider-box.sh --unbound
 sudo bash bootstrap/provider-box.sh --ntp
 sudo bash bootstrap/provider-box.sh --rsyslog
 sudo bash bootstrap/provider-box.sh --ca
@@ -115,10 +148,9 @@ sudo bash bootstrap/provider-box.sh --all
 Ordering rules when running services individually:
 
 - `--ca` must run before any service that uses a step-ca-issued certificate: `--technitium`, `--depot`, `--keycloak`, `--authentik`, `--netbox`, `--sftp`, and `--dns-sync`
-- `--unbound` and `--technitium` require `DNS_BACKEND` to match; only one DNS backend can own port 53
-- `--dns-sync` requires `DNS_BACKEND=technitium` and must run after both `--technitium` and `--netbox`
+- `--dns-sync` must run after both `--technitium` and `--netbox`
 
-`--all` deploys the selected DNS backend automatically: unbound first, or technitium right after the CA (Technitium needs a step-ca certificate). `--dns-sync` is never part of `--all`; with the technitium backend, run it explicitly after `--all`:
+`--all` deploys Technitium right after the CA (Technitium needs a step-ca certificate). `--dns-sync` is never part of `--all`; run it explicitly after `--all`:
 
 ```bash
 sudo bash bootstrap/provider-box.sh --all
@@ -146,7 +178,7 @@ Provider Box uses Docker Compose via `docker compose` (Compose v2). Docker insta
 
 ### Minimum required for VCF bring-up
 
-- a DNS backend: Unbound (default) or Technitium (with NetBox and dns-sync)
+- DNS: Technitium (with NetBox and dns-sync)
 - Chrony for NTP
 
 ### Recommended for realistic lab environments
@@ -167,8 +199,7 @@ Services are intended to remain independently deployable unless a dependency is 
 
 Examples:
 
-- `--unbound` does not require NetBox
-- `--netbox` does not require Unbound
+- `--netbox` does not require Technitium
 - `--s3` and `--sftp` do not require unrelated service configuration
 - step-ca is an intentional dependency for services that use Provider Box-issued TLS certificates
 - `--dns-sync` intentionally depends on Technitium and NetBox; it is the bridge between them
@@ -179,7 +210,6 @@ Provider Box uses a mixed runtime model. Host-based services modify the local sy
 
 | Service   | Runtime |
 |-----------|---------|
-| Unbound  | Host (native service) |
 | Chrony   | Host (native service) |
 | rsyslog  | Host (native service) |
 | step-ca  | Docker Compose |
@@ -211,7 +241,7 @@ When using `--all --remove`, services are removed in reverse dependency order. `
 
 `--technitium --remove` additionally restores the stock host resolver configuration: it deletes the Provider Box `systemd-resolved` drop-in, points `/etc/resolv.conf` back at the `systemd-resolved` stub, and restarts `systemd-resolved`.
 
-Host-based services (`--unbound`, `--ntp`, `--rsyslog`) do not support `--remove` and fail fast if it is passed; remove them manually with system package/service management.
+Host-based services (`--ntp`, `--rsyslog`) do not support `--remove` and fail fast if it is passed; remove them manually with system package/service management.
 
 See [Module Reference](#module-reference) for exactly what each `--remove` deletes and preserves.
 
@@ -285,7 +315,7 @@ This distinction is intentional:
 
 ### DNS record format
 
-`config/unbound.records` supports:
+`config/dns.seed` supports:
 
 ```text
 <fqdn> <ip>
@@ -296,20 +326,15 @@ Behavior:
 
 - If a record includes CIDR information, Provider Box can derive the surrounding subnet for NetBox
 - If a record includes only a plain IP, Provider Box imports the host address without guessing the subnet
-- Built-in Provider Box service records are generated automatically and should not be duplicated in `config/unbound.records`
+- Built-in Provider Box service records are generated automatically and should not be duplicated in `config/dns.seed`
 
-### DNS backend selection
+### DNS model
 
-`DNS_BACKEND` selects which DNS server Provider Box deploys and must be exactly `unbound` (default, host-based, original behavior) or `technitium` (containerized, API-driven, fed from NetBox via dns-sync). Exactly one backend owns port 53: `--all` deploys only the selected backend, and running the flag for the other backend fails fast naming the configured one. `--dns-sync` requires `DNS_BACKEND=technitium`.
+The `--technitium` module deploys the DNS server, and the `--dns-sync` module imports `config/dns.seed` into NetBox (when the file exists) and runs a continuous NetBox-to-Technitium reconcile loop. After bring-up, NetBox is the source of truth for lab records; change records in NetBox, not in the seed file.
 
-Each backend has its own module chain:
+Technitium forwards external queries to `DNS_FORWARDER`. It applies its default recursion policy, which serves RFC1918 (private) client networks; if the lab uses non-RFC1918 ranges, adjust the recursion access control list in the Technitium console so those clients can resolve.
 
-- `unbound`: the `--unbound` module renders `config/unbound.records` (plus the generated built-in service records) into the Unbound configuration. Record changes are applied by editing the file and re-running `--unbound`. NetBox is optional; `--netbox` imports `config/unbound.records` into IPAM when the file exists.
-- `technitium`: the `--technitium` module deploys the DNS server, and the `--dns-sync` module imports `config/dns.seed` into NetBox (when the file exists) and runs a continuous NetBox-to-Technitium reconcile loop. After bring-up, NetBox is the source of truth for lab records; change records in NetBox, not in the seed file.
-
-Both backends forward external queries to `DNS_FORWARDER` (falling back to `UNBOUND_FORWARDER` when unset, for backward compatibility). Technitium applies its default recursion policy, which serves RFC1918 (private) client networks; if the lab uses non-RFC1918 ranges, adjust the recursion access control list in the Technitium console so those clients can resolve.
-
-Built-in Provider Box service records are generated automatically from the `*_FQDN` values in `provider-box.env` under both backends, from one shared list: the unbound backend renders them into its resolver configuration, while the technitium backend has dns-sync synthesize them into the desired record set on every reconcile. They are not stored in NetBox, which enforces global IP uniqueness and holds a single canonical host IP object (`PROVIDER_BOX_FQDN`); that object also remains the reverse PTR target for the host IP.
+Built-in Provider Box service records are generated automatically from the `*_FQDN` values in `provider-box.env`: dns-sync synthesizes them into the desired record set on every reconcile. They are not stored in NetBox, which enforces global IP uniqueness and holds a single canonical host IP object (`PROVIDER_BOX_FQDN`); that object also remains the reverse PTR target for the host IP.
 
 ### Template rendering
 
@@ -323,26 +348,7 @@ Users consume updated versions by pulling changes to the repository.
 
 ## Service Notes
 
-### Unbound (DNS_BACKEND=unbound)
-
-- Acts as the authoritative DNS server for the lab domain
-- Serves the configured domain as a static local zone
-- Generates built-in Provider Box service records automatically
-- Includes `PROVIDER_BOX_FQDN` as the canonical host record for the Provider Box node
-- Uses `PROVIDER_BOX_FQDN` as the reverse PTR target for the Provider Box host IP
-- Uses `config/unbound.records` only for external and custom records
-- Uses the configured upstream forwarder for external resolution
-
-Record format:
-
-```text
-<fqdn> <ip>
-<fqdn> <ip/cidr>
-```
-
-If a record includes CIDR information, Provider Box can derive the surrounding subnet for NetBox, create the prefix object, and import the IP address object with the same mask. If a record uses only a plain IP, Provider Box imports the host address as `/32` without guessing a prefix.
-
-### Technitium DNS (DNS_BACKEND=technitium)
+### Technitium DNS
 
 - Runs the Technitium DNS server via Docker Compose
 - Requires step-ca to be initialized first (`--ca`)
@@ -365,7 +371,7 @@ Removal behavior:
 - `--technitium --remove` runs `docker compose down`, removes runtime files under `WORKDIR/technitium`, and restores the stock `systemd-resolved` configuration (stub listener re-enabled, `/etc/resolv.conf` pointed back at the stub)
 - Persistent data in `TECHNITIUM_DATA_DIR` and certificates in `TECHNITIUM_CERT_DIR` (including the pfx bundle and its password) are preserved
 
-### dns-sync (DNS_BACKEND=technitium)
+### dns-sync
 
 - Continuously reconciles DNS records from NetBox IPAM into Technitium
 - Requires `--ca`, `--technitium`, and `--netbox` to have run first; both readiness gates pin the lab FQDNs to `127.0.0.1`, so nothing depends on the zone it is about to populate
@@ -456,7 +462,7 @@ steps for you):
 3. `sudo bash bootstrap/provider-box.sh --ca` - initializes on postgres, enables
    CRL, and creates the read-only role.
 4. Reissue every service certificate against the new root, one at a time,
-   verifying each before the next. With `DNS_BACKEND=technitium` the order is:
+   verifying each before the next. The order is:
    `--technitium`, `--netbox`, `--authentik`, `--depot`, `--sftp`, `--dashboard`,
    then re-run `--dns-sync` (its NetBox/Technitium tokens are reissued too).
    Keycloak (if deployed) reissues the same way. Verify each leaf chains to the
@@ -553,8 +559,8 @@ VCF integration notes:
 - Uses a step-ca-issued certificate stored under `${NETBOX_DIR}/certs`
 - Bootstraps the initial superuser from `NETBOX_SUPERUSER_*` variables on first start
 - Seeds Provider Box service endpoints into NetBox via the NetBox API after startup
-- Imports DNS records from `config/unbound.records` into NetBox via the API during NetBox bootstrap when the file exists (skipped with a notice otherwise)
-- Re-run `sudo bash bootstrap/provider-box.sh --netbox` after changing `config/unbound.records` if you want the changes reflected in NetBox
+- Imports DNS records from `config/dns.seed` into NetBox via the API during NetBox bootstrap when the file exists (skipped with a notice otherwise)
+- Re-run `sudo bash bootstrap/provider-box.sh --netbox` after changing `config/dns.seed` if you want the changes reflected in NetBox
 
 API tokens (NetBox 4.6):
 
@@ -574,7 +580,7 @@ IPAM behavior:
 - One NetBox IP address object is created per unique address value
 - Built-in Provider Box service FQDNs share the canonical host IP object instead of creating duplicates
 
-This canonical host-IP model is NetBox seeding behavior only. It does not require Unbound to be deployed.
+This canonical host-IP model is NetBox seeding behavior only. It does not require Technitium to be deployed.
 
 ### SeaweedFS S3
 
@@ -654,10 +660,10 @@ The SFTP protocol service remains separate from the HTTPS UI configuration.
 
 ### Dashboard (read-only)
 
-`services/dashboard` is a **read-only** "current state" view of the Provider Box
+`services/control-plane` is a **read-only** "current state" view of the Provider Box
 services. Deploy it with `--dashboard` (also run by `--all`, last) or run it
-standalone with `services/dashboard/scripts/run.sh` (see
-`services/dashboard/README.md`). It has its own listener and does not alter any
+standalone with `services/control-plane/scripts/run.sh` (see
+`services/control-plane/README.md`). It has its own listener and does not alter any
 other service.
 
 - **What it shows.** Five panels, each fetched on page load under its own short
@@ -667,19 +673,19 @@ other service.
      notBefore/notAfter, days-to-expiry against a warn threshold. Reads step-ca's
      dedicated postgres over `127.0.0.1:<CA_POSTGRES_PORT>` with a `SELECT`-only
      role, decoding the opaque cert blobs (see `STEPCA_STORAGE.md`). The RO
-     password is provisioned by `--dashboard` into `DASHBOARD_SECRETS_DIR`.
+     password is provisioned by `--dashboard` into `CONTROL_PLANE_SECRETS_DIR`.
   2. DNS (Technitium) - zones, managed record counts, forwarder, TLS reachability.
   3. IPAM (NetBox) - prefix/IP counts and the `dns_name` inventory.
   4. Services (Docker) - container state/health/uptime/image for the stacks.
   5. Recent errors - a bounded per-container log tail, parsing `dns-sync`'s slog
      JSON for `level>=error`.
-- **How to run it.** Add the `DASHBOARD_*` block from
+- **How to run it.** Add the `CONTROL_PLANE_*` block from
   `config/provider-box.env.example` to your `config/provider-box.env`, then
   `sudo bash bootstrap/provider-box.sh --dashboard` (issues the cert from
-  step-ca, brings up the stack, verifies HTTPS, and publishes `DASHBOARD_FQDN`).
+  step-ca, brings up the stack, verifies HTTPS, and publishes `CONTROL_PLANE_FQDN`).
   The scoped read-only tokens are optional - without them the NetBox/Technitium
   panels show "not configured". Standalone use is still supported via
-  `services/dashboard/scripts/run.sh`. HTTPS is default; a missing cert logs a
+  `services/control-plane/scripts/run.sh`. HTTPS is default; a missing cert logs a
   warning and falls back to HTTP rather than failing to start.
 - **Security posture.** Read-only everywhere (no upstream write path). It uses a
   **dedicated minimum-read-scope NetBox token** (never the dns-sync/bootstrap
@@ -699,11 +705,10 @@ All flags are passed to `sudo bash bootstrap/provider-box.sh <flag>`. "Depends o
 
 | Flag | Purpose | Depends on | Data / runtime dirs | Ports | Secrets it creates | `--remove` behavior |
 |------|---------|------------|---------------------|-------|--------------------|---------------------|
-| `--unbound` | Host-based DNS backend (`DNS_BACKEND=unbound`) | none (requires `config/unbound.records`) | `/etc/unbound/unbound.conf.d/provider-box.conf` | 53/tcp+udp | none | not supported |
 | `--ntp` | Chrony NTP server | none | `/etc/chrony/chrony.conf` | 123/udp | none | not supported |
 | `--rsyslog` | Central syslog collector | none | `SYSLOG_LOG_DIR`, `/etc/rsyslog.d/provider-box.conf` | `SYSLOG_PORT`/udp+tcp | none | not supported |
 | `--ca` | step-ca private CA | none | `CA_DATA_DIR`; runtime under `WORKDIR/step-ca` | `CA_PORT`/tcp | CA password file (`CA_PASSWORD_FILE`) | removes runtime dir; preserves `CA_DATA_DIR` (keys, password) |
-| `--technitium` | Containerized DNS backend (`DNS_BACKEND=technitium`) | `--ca` | `TECHNITIUM_DATA_DIR`, `TECHNITIUM_CERT_DIR`; runtime under `WORKDIR/technitium` | 53/tcp+udp, `TECHNITIUM_HTTP_PORT`/tcp, `TECHNITIUM_HTTPS_PORT`/tcp | pfx password (`TECHNITIUM_CERT_DIR/technitium-pfx-password`), dns-sync API token (`DNS_SYNC_SECRETS_DIR/technitium.token`) | removes runtime dir, restores `systemd-resolved`; preserves data, certs, and token |
+| `--technitium` | Containerized DNS server | `--ca` | `TECHNITIUM_DATA_DIR`, `TECHNITIUM_CERT_DIR`; runtime under `WORKDIR/technitium` | 53/tcp+udp, `TECHNITIUM_HTTP_PORT`/tcp, `TECHNITIUM_HTTPS_PORT`/tcp | pfx password (`TECHNITIUM_CERT_DIR/technitium-pfx-password`), dns-sync API token (`DNS_SYNC_SECRETS_DIR/technitium.token`) | removes runtime dir, restores `systemd-resolved`; preserves data, certs, and token |
 | `--depot` | VCF offline depot (nginx) | `--ca` | `DEPOT_DATA_DIR`, `DEPOT_CERT_DIR`, `DEPOT_AUTH_DIR`; runtime under `WORKDIR/depot` | `DEPOT_HTTP_PORT`/tcp, `DEPOT_HTTPS_PORT`/tcp | `htpasswd` under `DEPOT_AUTH_DIR` | removes runtime dir and `htpasswd`; preserves data and certs |
 | `--keycloak` | Keycloak identity provider | `--ca` | `KEYCLOAK_DIR`; runtime under `WORKDIR/keycloak` | `KEYCLOAK_PORT`/tcp | none (credentials come from env) | removes runtime dir; preserves `KEYCLOAK_DIR` (certs, data) |
 | `--authentik` | Authentik identity provider (OIDC + SCIM) | `--ca` | `AUTHENTIK_DIR`; runtime under `WORKDIR/authentik` | `AUTHENTIK_PORT`/tcp | none (credentials come from env) | removes runtime dir; preserves `AUTHENTIK_DIR` (certs, data, postgres) |
@@ -711,12 +716,12 @@ All flags are passed to `sudo bash bootstrap/provider-box.sh <flag>`. "Depends o
 | `--s3` | SeaweedFS S3-compatible storage | none | `S3_DATA_DIR`; runtime under `WORKDIR/s3` | `S3_PORT`/tcp | none (credentials come from env) | removes runtime dir; preserves `S3_DATA_DIR` |
 | `--sftp` | SFTPGo file transfer | `--ca` | `SFTP_DATA_DIR`, `SFTP_HOME_DIR`, `SFTP_CERT_DIR`; runtime under `WORKDIR/sftpgo` | `SFTP_PORT`/tcp, `SFTP_ADMIN_PORT`/tcp | none (credentials come from env) | removes runtime dir; preserves data, home, and certs |
 | `--dns-sync` | NetBox-to-Technitium reconcile loop | `--ca`, `--technitium`, `--netbox` | `DNS_SYNC_DIR`, `DNS_SYNC_SECRETS_DIR`; runtime under `WORKDIR/dns-sync` | none (host networking, outbound only) | none (consumes tokens created by `--netbox` and `--technitium`) | removes runtime dir; preserves `DNS_SYNC_SECRETS_DIR` |
-| `--dashboard` | Read-only "current state" view of the services | `--ca` (reads `--netbox`, `--technitium`, `--dns-sync`, Docker when present) | `DASHBOARD_CERT_DIR`, `DASHBOARD_SECRETS_DIR`; runs the compose under `services/dashboard` | `DASHBOARD_ADDR` port (host networking) | none (issues its own leaf cert; scoped read-only tokens are operator-placed and optional) | brings the container down; preserves `DASHBOARD_CERT_DIR` and `DASHBOARD_SECRETS_DIR` |
+| `--dashboard` | Read-only "current state" view of the services | `--ca` (reads `--netbox`, `--technitium`, `--dns-sync`, Docker when present) | `CONTROL_PLANE_CERT_DIR`, `CONTROL_PLANE_SECRETS_DIR`; runs the compose under `services/control-plane` | `CONTROL_PLANE_ADDR` port (host networking) | none (issues its own leaf cert; scoped read-only tokens are operator-placed and optional) | brings the container down; preserves `CONTROL_PLANE_CERT_DIR` and `CONTROL_PLANE_SECRETS_DIR` |
 | `--all` | Deploy everything except dns-sync (dashboard included, last) | n/a | see individual modules | see individual modules | see individual modules | `--all --remove` removes the dashboard, SFTPGo, S3, NetBox, Authentik, Keycloak, depot, and step-ca only |
 
 Notes:
 
-- `--unbound` runs first under `--all` with `DNS_BACKEND=unbound`; `--technitium` runs right after `--ca` under `--all` with `DNS_BACKEND=technitium`
+- `--technitium` runs right after `--ca` under `--all`
 - Firewall rules are added with `ufw allow` for each service port; failures are ignored when ufw is absent
 
 ## Secrets Inventory
@@ -744,7 +749,7 @@ Real failure modes with the messages they produce:
 Error: Port 53 is already in use and Provider Box will not stop the holder automatically.
 ```
 
-`--technitium` preflights port 53. If `systemd-resolved`'s stub listener holds it, the module disables the stub listener automatically; any other holder (a leftover unbound, dnsmasq) must be stopped manually before re-running. With `DNS_BACKEND=unbound` the same conflict shows up as `systemctl restart unbound` failing; check `ss -lntup 'sport = :53'`.
+`--technitium` preflights port 53. If `systemd-resolved`'s stub listener holds it, the module disables the stub listener automatically; any other holder (a leftover unbound, dnsmasq) must be stopped manually before re-running. Check `ss -lntup 'sport = :53'`.
 
 ### step-ca did not initialize
 
@@ -822,7 +827,6 @@ bootstrap/
   authentik.sh
   ca.sh
   depot.sh
-  dns.sh
   dns-sync.sh
   keycloak.sh
   netbox.sh
@@ -836,14 +840,12 @@ bootstrap/
 config/
   dns.seed.example
   provider-box.env.example
-  unbound.records.example
 
 services/
   dns-sync/       Go source for the dns-sync and dns-seed binaries (image built locally by --dns-sync)
   dashboard/      Go source for the read-only dashboard (image + compose + scripts here; deployed by --dashboard or run standalone)
 
 templates/
-  unbound.conf.tpl
   chrony.conf.tpl
   rsyslog.conf.tpl
   docker-compose.step-ca.yml.tpl
@@ -901,16 +903,11 @@ This keeps deployments predictable and reproducible.
 - Ensure both forward and reverse DNS are configured
 - Import `keycloak-ca-chain.pem` into VCF when configuring OIDC
 - Use `keycloak-ca-roots.pem` only when a roots-only trust bundle is required
-- Built-in Provider Box service DNS records are generated automatically; reserve `config/unbound.records` and `config/dns.seed` for external and custom records
+- Built-in Provider Box service DNS records are generated automatically; reserve `config/dns.seed` for external and custom records
 
 ### DNS behavior warning
 
-Both DNS backends take over host name resolution:
-
-- `--unbound` rewrites `/etc/resolv.conf` to `127.0.0.1` and disables `systemd-resolved` unconditionally. There is no automatic restore path.
-- `--technitium` disables only the `systemd-resolved` stub listener (via a marked drop-in) and points `/etc/resolv.conf` at Technitium after verifying resolution works; `--technitium --remove` restores the stock configuration.
-
-Either way, local DNS resolution behavior on the host changes.
+Deploying DNS takes over host name resolution: `--technitium` disables the `systemd-resolved` stub listener (via a marked drop-in) and points `/etc/resolv.conf` at Technitium after verifying resolution works; `--technitium --remove` restores the stock configuration.
 
 ## Scope
 

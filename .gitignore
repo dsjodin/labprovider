@@ -1,6 +1,5 @@
 # Local configuration (contains secrets)
 config/provider-box.env
-config/unbound.records
 config/dns.seed
 
 # Editor files
@@ -27,4 +26,3 @@ config/dns.seed
 /technitium/
 /authentik/
 /config/provider-box.env
-/config/unbound.records

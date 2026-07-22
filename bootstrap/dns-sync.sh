@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
 # dns-sync deliberately does NOT touch /etc/resolv.conf or disable
-# systemd-resolved. That is the 1.0 --unbound trap (do_unbound rewrote
-# resolv.conf unconditionally) and the technitium-dns_design.md sec 9 rule
-# explicitly forbids repeating it. If the operator wants clients to use
+# systemd-resolved. Host resolver ownership belongs to the technitium module
+# alone (technitium-dns_design.md sec 9). If the operator wants clients to use
 # Technitium, they manage resolv.conf themselves.
 
 require_dns_sync_vars() {
@@ -148,8 +147,8 @@ apply_dns_seed_to_netbox() {
 # Built-in Provider Box service FQDNs cannot live in NetBox as separate IP
 # objects (NetBox enforces global IP uniqueness; the canonical host IP is one
 # object with PROVIDER_BOX_FQDN as dns_name), so dns-sync synthesizes their A
-# records from the environment on every reconcile pass. Same list as the
-# unbound backend, via provider_box_builtin_fqdns.
+# records from the environment on every reconcile pass, via
+# provider_box_builtin_fqdns.
 build_dns_sync_builtin_records() {
   local fqdn records=""
   while IFS= read -r fqdn; do

@@ -10,7 +10,7 @@ blast radius.
 
 ---
 
-## 1. Technitium bootstrap uses hardcoded first-boot admin credentials
+## 1. Technitium bootstrap uses hardcoded first-boot admin credentials (RESOLVED in the control-plane path)
 
 - What: All bootstrap-phase Technitium API calls authenticate with the
   literal first-boot credentials `admin`/`admin`, and the admin password is
@@ -30,7 +30,7 @@ blast radius.
   and validation; changes re-run behavior on hosts where the password was
   already changed manually.
 
-## 2. --netbox leaks one live superuser API token per run
+## 2. --netbox leaks one live superuser API token per run (RESOLVED in the control-plane path)
 
 - What: `netbox_api_auth_header` provisions a fresh superuser token on every
   `--netbox` run for the seeding calls and never deletes it afterwards.
@@ -60,7 +60,7 @@ blast radius.
   probably over-engineering for the lab scope.
 - Blast radius: Small. One function in `netbox.sh`.
 
-## 4. docker_pkgs Docker CE fallback hardcodes the Debian repo
+## 4. docker_pkgs Docker CE fallback hardcodes the Debian repo (RESOLVED in install.sh)
 
 - What: The Docker CE install path always uses
   `https://download.docker.com/linux/debian` with the host's
@@ -131,22 +131,13 @@ blast radius.
   dashboard phase-2 items (history/collector, UI auth) are tracked in
   `services/dashboard/README.md`.
 
-## 8. --unbound host resolver takeover has no restore path
+## 8. --unbound host resolver takeover has no restore path (RESOLVED)
 
-- What: `configure_resolv_conf` disables `systemd-resolved` and rewrites
-  `/etc/resolv.conf` unconditionally, and `--unbound` has no `--remove`.
-- Where: `bootstrap/provider-box.sh:215-224`, called from
-  `bootstrap/dns.sh:38`.
-- Why it matters: The technitium module got a careful marker-based
-  disable/restore flow plus resolution verification for the same
-  operation; the unbound path still breaks host DNS permanently if unbound
-  fails to start, with manual recovery only.
-- Suggested fix: Reuse the technitium module's pattern: verify resolution
-  before/after, use a marked drop-in for the stub listener instead of
-  disabling the whole service, and add a `--unbound --remove` that
-  restores stock configuration.
-- Blast radius: Medium. Changes host-level behavior of the default
-  backend; needs care on hosts already converted by the old flow.
+- Resolved by removal: the Unbound backend was deleted entirely
+  (see CHANGELOG 2026-07-10). Technitium's marker-based disable/restore
+  flow is the only host resolver path. Hosts previously converted by the
+  old `configure_resolv_conf` flow must restore `systemd-resolved`
+  manually.
 
 ## 9. Four copies of the same JSON field extractor, six copies of the CA readiness gate
 
@@ -210,7 +201,7 @@ blast radius.
   pinned image first.
 - Blast radius: Small. Local-only exposure today; two functions.
 
-## 13. AGENTS.md is stale (not edited by this pass by instruction)
+## 13. AGENTS.md is stale (RESOLVED: rewritten to the v2 control-plane model)
 
 - What: The agent rules predate Authentik, Technitium, dns-sync, and the
   DNS backend model.
@@ -228,7 +219,7 @@ blast radius.
   section.
 - Blast radius: Documentation only.
 
-## 14. PROJECT_CONTEXT.md is stale (not edited by this pass by instruction)
+## 14. PROJECT_CONTEXT.md is stale (RESOLVED: rewritten to the v2 control-plane model)
 
 - What: Core components and the container image list predate Authentik,
   Technitium, and dns-sync.

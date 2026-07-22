@@ -1,0 +1,63 @@
+services:
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "authentik"
+      POSTGRES_USER: "authentik"
+      POSTGRES_PASSWORD: "akpg"
+    volumes:
+      - /opt/provider-box/authentik/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authentik -d authentik"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  server:
+    image: ghcr.io/goauthentik/server:2026.5.3
+    restart: unless-stopped
+    command: server
+    shm_size: 512mb
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_SECRET_KEY: "aksecret"
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__NAME: "authentik"
+      AUTHENTIK_POSTGRESQL__USER: "authentik"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "akpg"
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
+      AUTHENTIK_BOOTSTRAP_PASSWORD: "akadmin"
+      AUTHENTIK_BOOTSTRAP_TOKEN: "aktoken"
+    ports:
+      - "9443:9443"
+    volumes:
+      - /opt/provider-box/authentik/certs:/certs:ro
+      - /opt/provider-box/authentik/data:/data
+      - /opt/provider-box/runtime/authentik/blueprints:/blueprints/custom:ro
+
+  worker:
+    image: ghcr.io/goauthentik/server:2026.5.3
+    restart: unless-stopped
+    command: worker
+    shm_size: 512mb
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_SECRET_KEY: "aksecret"
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__NAME: "authentik"
+      AUTHENTIK_POSTGRESQL__USER: "authentik"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "akpg"
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
+      AUTHENTIK_BOOTSTRAP_PASSWORD: "akadmin"
+      AUTHENTIK_BOOTSTRAP_TOKEN: "aktoken"
+    volumes:
+      - /opt/provider-box/authentik/certs:/certs:ro
+      - /opt/provider-box/authentik/data:/data
+      - /opt/provider-box/runtime/authentik/blueprints:/blueprints/custom:ro

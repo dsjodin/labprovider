@@ -4,6 +4,93 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-11 (v2 documentation: control plane is the primary path)
+
+### Fixes
+- Fix the Technitium admin-password rotation in the Go deployer (`services/control-plane/internal/deploy/technitium_api.go`, `AdminToken`), which aborted a fresh deploy with `rotate the Technitium admin password: /api/user/changePassword: status error: Parameter 'newPass' missing.`. The `changePassword` call omitted `newPass` and passed the new password as `pass`; it now sends the current (first-boot) password as `pass=admin` and the configured value as `newPass`, matching Technitium's API. Added `AdminToken` unit tests covering the first-boot rotation (asserts `newPass`/`pass`) and the idempotent re-run (no `changePassword` when the configured password already works).
+
+### Changes
+- README leads with the v2 flow: `sudo bash install.sh`, then the web UI (`/config` wizard, `/deploy` with live progress, `/` dashboard). A required-open-ports table replaces the bootstrap's best-effort `ufw allow` calls. The bash bootstrap docs remain below under an explicit "Transitional" heading; the bash path is scheduled for removal once the control-plane path has proven parity end-to-end on a fresh host.
+- AGENTS.md and PROJECT_CONTEXT.md are rewritten to the v2 model (closing IMPROVEMENTS #13/#14): fully containerized services, Go deployers under `services/control-plane/internal/deploy/`, the schema-table validation model, the deployer structure contract, and the updated filesystem/DNS/TLS rules.
+- IMPROVEMENTS #1, #2 (fixed in the Go deployers) and #4 (fixed in install.sh) are marked resolved.
+
+Remaining before the bash deletion (the final v2 step): end-to-end verification on a fresh Debian/Ubuntu host - install.sh, wizard, deploy all, the README checks - then delete `bootstrap/` and the legacy `templates/` directory.
+
+---
+
+## 2026-07-11 (control plane deploys depot, keycloak, authentik, sftpgo)
+
+### Features
+- The deploy engine now covers every service (Phase 5 of the v2 plan): Go ports of `bootstrap/depot.sh`, `bootstrap/keycloak.sh`, `bootstrap/authentik.sh`, and `bootstrap/sftp.sh`.
+  - **depot**: PROD directory layout, step-ca cert, HTTP+HTTPS health waits; the managed `htpasswd` is generated with a native APR1-MD5 implementation - the apache2-utils host package is no longer needed.
+  - **keycloak**: the bootstrap realm import (realm, group, VCF OIDC client, optional lab user) is built with encoding/json instead of the json_escape/heredoc templating; `keycloak-full-chain.pem` (leaf+intermediate+root) is still produced for the VCF SSO chain upload.
+  - **authentik**: blueprint render, fullchain.pem/privkey.pem for certificate discovery (reuse check runs against the discovery names), HTTP + token-auth readiness gates, blueprint re-apply once the keypair is discovered, brand web-certificate PATCH, and the final verify that the served cert chains to step-ca.
+  - **sftp**: HTTPS admin UI cert, data/home ownership, optional backup user via the SFTPGo API (created once, never modified after).
+- With this, "deploy all" from the control plane UI covers the entire service catalog in dependency order: chrony, rsyslog, ca, technitium, depot, keycloak, authentik, netbox, s3, sftp, dns-sync.
+
+---
+
+## 2026-07-11 (control plane deploys the DNS chain: technitium, netbox, dns-sync)
+
+### Features
+- The deploy engine now covers the full DNS chain (Phase 4 of the v2 plan): Go ports of `bootstrap/technitium.sh`, `bootstrap/netbox.sh`, and `bootstrap/dns-sync.sh` with the same flows and data-preservation semantics. Highlights per deployer:
+  - **technitium**: pre-pull-before-down (DNS never goes down against an uncached image), port-53 test-bind preflight, PKCS#12 bundle built natively with go-pkcs12 (replaces openssl), forwarder + web-TLS configuration over the settings API, dns-sync token minting, dashboard user/grants/token, and host resolv.conf point/restore via the mounted `/host/etc`. NEW: the first-boot `admin`/`admin` credentials are rotated to `TECHNITIUM_ADMIN_PASSWORD` (new required variable) on first deploy and used on re-runs - closes IMPROVEMENTS #1 (default credentials window, broken re-runs after a manual password change).
+  - **netbox**: pepper resolution/persistence, API seeding with typed JSON payloads (site/manufacturer/device-type/role/device, canonical host IP, built-in service entries, dns.seed import), v2 Bearer token provisioning with legacy fallback, dns-sync + dashboard read-only token provisioning with description-tagged retirement. NEW: the per-run superuser seeding token is retired at the end of the deploy - closes IMPROVEMENTS #2 (leaked live superuser token per run).
+  - **dns-sync**: image built from source baked into the control-plane image (no repo checkout needed on the host), dns.seed import via dns-seed, pinned readiness gates against NetBox and Technitium, then real-DNS verification that `PROVIDER_BOX_FQDN` and every built-in service FQDN resolve via Technitium.
+- The config wizard now also manages `dns.seed` (edit/validate/save, saved next to the managed config); the netbox and dns-sync deployers read the same managed copy.
+- Deploying "all" from the UI now includes dns-sync automatically in the right order - the old "run --dns-sync after --all" caveat is gone on the control-plane path.
+
+---
+
+## 2026-07-11 (control plane deploys step-ca)
+
+### Features
+- The deploy engine now deploys step-ca with its dedicated PostgreSQL backend (Phase 3 of the v2 plan): a full Go port of `bootstrap/ca.sh` in `services/control-plane/internal/deploy/ca.go`. Password-file materialization (existing file / `CA_PASSWORD` / generated), the `.pgpass` writer with `:`/`\` escaping, uid-70 postgres dir prep, the badger-to-postgres `ca.json` rewrite (encoding/json replaces jq), the fresh-root-vs-nonempty-store guard, the corrupted-root_ca.crt guard, CRL enablement, provisioner duration configuration, and the read-only role provisioning (now over pgx to the loopback-published port instead of psql-in-container) all behave as in the bash module.
+- Shared step-ca helpers for every certificate consumer (`internal/deploy/stepca.go`): `IssueCert` (step CLI container, full-chain guarantee, cert-identity reuse), `WaitHTTPSPinned` (Go equivalent of `curl --resolve fqdn:port:127.0.0.1 --cacert root_ca.crt`), and a native x509 port of `certificate_matches_dns_identity`.
+- After deploying the CA, the engine issues the control plane's own leaf certificate; `install.sh` points `CONTROL_PLANE_TLS_CERT`/`_KEY` at it, so a container restart upgrades the UI from HTTP to HTTPS.
+
+---
+
+## 2026-07-11 (control plane deploy engine, config wizard, install.sh)
+
+### Features
+- The control plane now carries a deploy engine (Phase 2 of the v2 plan): a static service registry with explicit dependencies, executed sequentially in dependency order, with per-run progress streamed over SSE. New routes: `/config` (wizard), `/deploy` (service selection + live log), `GET/PUT /api/config`, `POST /api/config/validate`, `GET /api/services`, `POST /api/deploy`, `GET /api/deploys/{id}/events`. The engine is enabled when the image carries the example config; the legacy `--dashboard` compose deployment stays a read-only dashboard.
+- Config wizard: edit or paste `provider-box.env` in the browser, download it, validate (all findings at once, per-variable), and save. The managed copy lives at `/opt/provider-box/control-plane/provider-box.env`; deploys always re-read and re-validate it. Saving is blocked only when variables defined in the example are missing.
+- First three deployers, ported/new in Go (`services/control-plane/internal/deploy`): `s3` (port of `bootstrap/s3.sh`), `chrony`, and `rsyslog` - the latter two are now CONTAINERIZED (host networking; chrony gets only `cap_add: SYS_TIME`; rsyslog config is `rsyslogd -N1`-validated before start). Their images are built locally by the engine from embedded Dockerfiles (`CHRONY_IMAGE`, `RSYSLOG_IMAGE`; alpine + chrony/rsyslog), no registry needed. The bash `--ntp`/`--rsyslog` host-native path is unchanged until cutover.
+- `install.sh` at the repo root: the only shell in the v2 model. Installs Docker if absent (Debian AND Ubuntu repos - fixes IMPROVEMENTS #4), does the one-time host prep (disables the systemd-resolved stub listener with a marked drop-in, disables systemd-timesyncd, creates `/opt/provider-box`), builds the control-plane image from the checkout, and runs it root + host-network with the docker socket, `/opt/provider-box`, and `/host/etc` mounted. Prints the UI URL. No auth on the UI - trusted lab networks only.
+- Templates are rendered with Go text/template (`{{.VAR}}`) instead of envsubst, embedded in the binary. A missing variable now fails the render instead of silently producing an empty string. Golden-file parity tests pin the converted templates against the envsubst output of the originals.
+
+### Changes
+- `SYSLOG_LOG_DIR` default moves to `/opt/provider-box/syslog/logs` (was `/var/log/provider-box`) so the containerized rsyslog and control plane share the `/opt/provider-box` mount. New `CHRONY_DIR` (drift data) and `CHRONY_IMAGE`/`RSYSLOG_IMAGE` variables.
+- The control-plane image is now alpine-based (was scratch) and bundles the pinned docker CLI + compose/buildx plugins; the build context is the repo root so the image carries `provider-box.env.example` for the wizard.
+
+---
+
+## 2026-07-10 (rename services/dashboard to services/control-plane)
+
+### Changes
+- `services/dashboard` is renamed to `services/control-plane` (git mv; Phase 1 of the Provider Box v2 plan). The service is unchanged functionally - it is still the read-only "current state" dashboard - but it is the foundation the v2 deploy engine and web UI build on.
+- Go module path is now `github.com/dsjodin/provider-box/services/control-plane`; the binary and image are `control-plane` (`CONTROL_PLANE_IMAGE="provider-box/control-plane:0.1.0"`).
+- Every `DASHBOARD_*` variable in `provider-box.env` is renamed to `CONTROL_PLANE_*` (same meanings and defaults; default cert/secrets paths move to `/opt/provider-box/control-plane/...`). `DNS_SYNC_TECHNITIUM_DASHBOARD_USER` and the read-only `dashboard` service accounts in Technitium/NetBox keep their names.
+- `scripts/issue-dashboard-cert.sh` is renamed to `scripts/issue-cert.sh`; the issued leaf is now `control-plane.crt`/`control-plane.key` (a redeploy reissues it).
+- The `--dashboard` bootstrap flag is unchanged and now deploys the renamed service.
+
+---
+
+## 2026-07-10 (remove unbound; Technitium is the only DNS backend)
+
+### Removed
+- The host-based Unbound DNS backend is removed entirely: `bootstrap/dns.sh`, `templates/unbound.conf.tpl`, `config/unbound.records.example`, the `--unbound` flag, and the `DNS_BACKEND` backend switch are gone. Technitium (with NetBox and dns-sync) is the only DNS path; `--all` always deploys Technitium right after `--ca`.
+- `UNBOUND_FORWARDER` is removed from the env model. `DNS_FORWARDER` is now required (no fallback). `DNS_BACKEND` is removed; `--technitium` and `--dns-sync` no longer check it.
+
+### Changes
+- External/custom DNS records now live only in `config/dns.seed` (same `<fqdn> <ip[/cidr]>` format as the removed `config/unbound.records`). `--netbox` imports `config/dns.seed` when the file exists; record-source metadata in NetBox descriptions says `dns.seed`.
+- Dead code dropped from the dispatcher with the backend switch: `unbound_pkgs`, `configure_resolv_conf` (the unconditional resolver takeover with no restore path), `build_dns_record_block`, `build_provider_box_dns_block`, `require_records_file`, `validate_dns_backend`, and `require_dns_backend`.
+
+This is Phase 0 of the Provider Box v2 plan (fully containerized services plus a Go control plane replacing the bash bootstrap).
+
+---
+
 ## 2026-07-10 (dashboard token auto-provisioning)
 
 ### Features
