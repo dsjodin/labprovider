@@ -169,7 +169,9 @@ func readZitadelPAT(ctx context.Context, path string) (string, error) {
 		case <-time.After(2 * time.Second):
 		}
 	}
-	return "", fmt.Errorf("Zitadel did not write the machine-user PAT to %s; check the server logs", path)
+	machinekeyDir := filepath.Dir(path)
+	postgresDir := filepath.Join(filepath.Dir(machinekeyDir), "postgres")
+	return "", fmt.Errorf("Zitadel did not write the machine-user PAT to %s. It is written only during a first-instance init on an empty database; if the database already holds an instance without the PAT (e.g. an interrupted first init), stop the stack and remove %s and %s, then redeploy to re-initialize (lab data is disposable)", path, postgresDir, machinekeyDir)
 }
 
 // zitadelAPI wraps the Management API calls: the FQDN is pinned to 127.0.0.1
