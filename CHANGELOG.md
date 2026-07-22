@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ## 2026-07-22 (Zitadel uses the v4 Login V2 UI)
 
+### Features
+- Zitadel multi-tenant seeding via `ZITADEL_TENANTS`. When set to a comma-separated list of org names, the deployer creates each as an isolated organization - its own vcf-sso project, OIDC client, project role, and lab user - via the Management API scoped with the `x-zitadel-orgid` header, leaving the default org for instance administration only. Each tenant's generated client id/secret, issuer, and org login scope (`urn:zitadel:iam:org:id:<orgId>`) are written to `zitadel-oidc-<name>.txt`. Empty keeps the prior single-default-org behavior. Org creation is idempotent (lookup-before-create, since Zitadel org names are not unique). Note: the generated org domains are logical identifiers (login names / org discovery), not DNS records - all orgs share the one instance URL.
+
 ### Changes
 - Log the Zitadel Console admin login name and URL at the end of a deploy. Zitadel appends the generated org domain to the configured admin username (e.g. `provider-admin` becomes `provider-admin@zitadel.<fqdn>`), which was otherwise only discoverable by querying the API; the deployer now fetches and prints it (best-effort).
 

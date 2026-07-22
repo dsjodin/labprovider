@@ -217,6 +217,13 @@ func (a *zitadelAPI) client() *http.Client {
 }
 
 func (a *zitadelAPI) do(ctx context.Context, method, path string, payload any) (int, []byte, error) {
+	return a.doOrg(ctx, method, path, "", payload)
+}
+
+// doOrg is do scoped to an organization: when orgID is non-empty it sets the
+// x-zitadel-orgid header so the call operates in that org instead of the
+// token's own (default) org.
+func (a *zitadelAPI) doOrg(ctx context.Context, method, path, orgID string, payload any) (int, []byte, error) {
 	var body io.Reader
 	if payload != nil {
 		b, err := json.Marshal(payload)
@@ -231,6 +238,9 @@ func (a *zitadelAPI) do(ctx context.Context, method, path string, payload any) (
 	}
 	req.Header.Set("Authorization", "Bearer "+a.token)
 	req.Header.Set("Accept", "application/json")
+	if orgID != "" {
+		req.Header.Set("x-zitadel-orgid", orgID)
+	}
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -268,23 +278,56 @@ func (a *zitadelAPI) waitAPIReady(ctx context.Context, attempts int, interval ti
 	return fmt.Errorf("Zitadel Management API did not become ready (last: %s); if it keeps failing with a gRPC \"dial tcp [::1]:8080: connect: connection refused\", the core container cannot reach its own gRPC backend over IPv6 loopback - enable IPv6 loopback in the container", last)
 }
 
-// provisionZitadel creates the bootstrap project, OIDC application, lab user,
-// and project role via the Management API. Every step tolerates a pre-existing
-// object (HTTP 409) so a re-run is idempotent; the OIDC client credentials,
-// which Zitadel returns only on creation, are written to a file the first time
-// and that file guards against re-creating the application.
+// provisionZitadel seeds the VCF-SSO objects. When ZITADEL_TENANTS is set, each
+// name becomes an isolated organization with its own project, OIDC client,
+// role, and lab user (credentials written to zitadel-oidc-<name>.txt); when it
+// is empty a single set is seeded in the default org for backward
+// compatibility. Every step tolerates a pre-existing object (HTTP 409) so a
+// re-run is idempotent.
 func provisionZitadel(ctx context.Context, rc *RunCtx, api *zitadelAPI) error {
-	env := rc.Env
-	rc.Log("Provisioning the Zitadel bootstrap project and OIDC client.")
+	tenants := splitTenants(rc.Env["ZITADEL_TENANTS"])
+	if len(tenants) == 0 {
+		rc.Log("Provisioning the Zitadel bootstrap project and OIDC client in the default org.")
+		return provisionZitadelOrg(ctx, rc, api, "", "")
+	}
+	for _, name := range tenants {
+		orgID, err := ensureZitadelOrg(ctx, api, name)
+		if err != nil {
+			return err
+		}
+		rc.Log("Provisioning Zitadel tenant org %q (id %s).", name, orgID)
+		if err := provisionZitadelOrg(ctx, rc, api, orgID, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	projectID, err := ensureZitadelProject(ctx, api, env["ZITADEL_BOOTSTRAP_CLIENT_ID"])
+// splitTenants parses the comma-separated ZITADEL_TENANTS list, trimming blanks.
+func splitTenants(csv string) []string {
+	var out []string
+	for _, t := range strings.Split(csv, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// provisionZitadelOrg seeds one org (orgID empty means the token's default org)
+// with the bootstrap project, role, OIDC client, and lab user, writing the
+// generated client credentials and the org login scope to a per-org file.
+func provisionZitadelOrg(ctx context.Context, rc *RunCtx, api *zitadelAPI, orgID, label string) error {
+	env := rc.Env
+
+	projectID, err := ensureZitadelProject(ctx, api, orgID, env["ZITADEL_BOOTSTRAP_CLIENT_ID"])
 	if err != nil {
 		return err
 	}
 
 	role := env["ZITADEL_BOOTSTRAP_GROUP_NAME"]
-	status, _, err := api.do(ctx, http.MethodPost,
-		"/management/v1/projects/"+projectID+"/roles",
+	status, _, err := api.doOrg(ctx, http.MethodPost,
+		"/management/v1/projects/"+projectID+"/roles", orgID,
 		map[string]string{"roleKey": role, "displayName": role})
 	if err != nil {
 		return err
@@ -293,13 +336,13 @@ func provisionZitadel(ctx context.Context, rc *RunCtx, api *zitadelAPI) error {
 		return fmt.Errorf("create Zitadel project role %q: HTTP %d", role, status)
 	}
 
-	clientFile := filepath.Join(env["ZITADEL_DIR"], "certs", env["ZITADEL_FQDN"], "zitadel-oidc-client.txt")
+	clientFile := zitadelClientFile(env, label)
 	if _, err := os.Stat(clientFile); err == nil {
 		rc.Log("Reusing existing Zitadel OIDC client (credentials in %s).", clientFile)
 	} else {
 		redirectURIs, _ := zitadelRedirectURIs(env)
-		status, body, err := api.do(ctx, http.MethodPost,
-			"/management/v1/projects/"+projectID+"/apps/oidc",
+		status, body, err := api.doOrg(ctx, http.MethodPost,
+			"/management/v1/projects/"+projectID+"/apps/oidc", orgID,
 			map[string]any{
 				"name":            env["ZITADEL_BOOTSTRAP_CLIENT_ID"],
 				"redirectUris":    redirectURIs,
@@ -317,20 +360,21 @@ func provisionZitadel(ctx context.Context, rc *RunCtx, api *zitadelAPI) error {
 		}
 		clientID := firstResult(body, "clientId")
 		clientSecret := firstResult(body, "clientSecret")
-		content := fmt.Sprintf("issuer=%s\nclient_id=%s\nclient_secret=%s\n", api.base(), clientID, clientSecret)
+		content := zitadelClientFileContent(api.base(), orgID, label, clientID, clientSecret)
 		if err := os.WriteFile(clientFile, []byte(content), 0o600); err != nil {
 			return err
 		}
-		rc.Log("Zitadel OIDC client created; credentials written to %s (Zitadel generates the client id/secret, so use these for VCF SSO).", clientFile)
+		rc.Log("Zitadel OIDC client created for %s; credentials written to %s (Zitadel generates the client id/secret, so use these for VCF SSO).",
+			zitadelOrgLabel(label), clientFile)
 	}
 
-	userID, err := ensureZitadelUser(ctx, api, env)
+	userID, err := ensureZitadelUser(ctx, api, orgID, env)
 	if err != nil {
 		return err
 	}
 	if userID != "" {
-		status, _, err = api.do(ctx, http.MethodPost,
-			"/management/v1/users/"+userID+"/grants",
+		status, _, err = api.doOrg(ctx, http.MethodPost,
+			"/management/v1/users/"+userID+"/grants", orgID,
 			map[string]any{"projectId": projectID, "roleKeys": []string{role}})
 		if err != nil {
 			return err
@@ -342,8 +386,84 @@ func provisionZitadel(ctx context.Context, rc *RunCtx, api *zitadelAPI) error {
 	return nil
 }
 
-func ensureZitadelProject(ctx context.Context, api *zitadelAPI, name string) (string, error) {
-	status, body, err := api.do(ctx, http.MethodPost, "/management/v1/projects", map[string]string{"name": name})
+// ensureZitadelOrg finds (or creates) an organization by name and returns its
+// id. Org names are not unique in Zitadel (only domains are), so the lookup
+// runs first to keep the operation idempotent.
+func ensureZitadelOrg(ctx context.Context, api *zitadelAPI, name string) (string, error) {
+	status, body, err := api.do(ctx, http.MethodPost, "/admin/v1/orgs/_search",
+		map[string]any{"queries": []map[string]any{
+			{"nameQuery": map[string]string{"name": name, "method": "TEXT_QUERY_METHOD_EQUALS"}},
+		}})
+	if err != nil {
+		return "", err
+	}
+	if status == http.StatusOK {
+		if id := firstResult(body, "id"); id != "" {
+			return id, nil
+		}
+	}
+	status, body, err = api.do(ctx, http.MethodPost, "/management/v1/orgs", map[string]string{"name": name})
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusOK && status != http.StatusCreated {
+		return "", fmt.Errorf("create Zitadel org %q: HTTP %d: %.300s", name, status, body)
+	}
+	if id := firstResult(body, "id"); id != "" {
+		return id, nil
+	}
+	return "", fmt.Errorf("Zitadel org %q created but no id was returned: %.300s", name, body)
+}
+
+// zitadelClientFile is the per-org OIDC credential file. The default org (empty
+// label) keeps the original name so existing deployments are unaffected.
+func zitadelClientFile(env map[string]string, label string) string {
+	dir := filepath.Join(env["ZITADEL_DIR"], "certs", env["ZITADEL_FQDN"])
+	if label == "" {
+		return filepath.Join(dir, "zitadel-oidc-client.txt")
+	}
+	return filepath.Join(dir, "zitadel-oidc-"+sanitizeFileLabel(label)+".txt")
+}
+
+// zitadelClientFileContent renders the VCF-SSO federation details, including the
+// org login scope so the VCF OIDC request can pin sign-in to this tenant.
+func zitadelClientFileContent(issuer, orgID, label, clientID, clientSecret string) string {
+	var b strings.Builder
+	if label != "" {
+		fmt.Fprintf(&b, "tenant=%s\n", label)
+	}
+	if orgID != "" {
+		fmt.Fprintf(&b, "org_id=%s\n", orgID)
+		fmt.Fprintf(&b, "org_scope=urn:zitadel:iam:org:id:%s\n", orgID)
+	}
+	fmt.Fprintf(&b, "issuer=%s\n", issuer)
+	fmt.Fprintf(&b, "client_id=%s\n", clientID)
+	fmt.Fprintf(&b, "client_secret=%s\n", clientSecret)
+	return b.String()
+}
+
+func zitadelOrgLabel(label string) string {
+	if label == "" {
+		return "the default org"
+	}
+	return "tenant " + label
+}
+
+// sanitizeFileLabel makes a filesystem-safe slug from an org name.
+func sanitizeFileLabel(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	return b.String()
+}
+
+func ensureZitadelProject(ctx context.Context, api *zitadelAPI, orgID, name string) (string, error) {
+	status, body, err := api.doOrg(ctx, http.MethodPost, "/management/v1/projects", orgID, map[string]string{"name": name})
 	if err != nil {
 		return "", err
 	}
@@ -357,7 +477,7 @@ func ensureZitadelProject(ctx context.Context, api *zitadelAPI, name string) (st
 		return "", fmt.Errorf("create Zitadel project: HTTP %d: %.300s", status, body)
 	}
 	// Already exists: look it up by name.
-	status, body, err = api.do(ctx, http.MethodPost, "/management/v1/projects/_search",
+	status, body, err = api.doOrg(ctx, http.MethodPost, "/management/v1/projects/_search", orgID,
 		map[string]any{"queries": []map[string]any{
 			{"nameQuery": map[string]string{"name": name, "method": "TEXT_QUERY_METHOD_EQUALS"}},
 		}})
@@ -370,9 +490,9 @@ func ensureZitadelProject(ctx context.Context, api *zitadelAPI, name string) (st
 	return "", fmt.Errorf("Zitadel project %q exists but could not be located (HTTP %d)", name, status)
 }
 
-func ensureZitadelUser(ctx context.Context, api *zitadelAPI, env map[string]string) (string, error) {
+func ensureZitadelUser(ctx context.Context, api *zitadelAPI, orgID string, env map[string]string) (string, error) {
 	username := env["ZITADEL_BOOTSTRAP_USERNAME"]
-	status, body, err := api.do(ctx, http.MethodPost, "/management/v1/users/human",
+	status, body, err := api.doOrg(ctx, http.MethodPost, "/management/v1/users/human", orgID,
 		map[string]any{
 			"userName": username,
 			"profile": map[string]string{
@@ -394,7 +514,7 @@ func ensureZitadelUser(ctx context.Context, api *zitadelAPI, env map[string]stri
 	if status != http.StatusConflict {
 		return "", fmt.Errorf("create Zitadel lab user: HTTP %d: %.300s", status, body)
 	}
-	status, body, err = api.do(ctx, http.MethodPost, "/management/v1/users/_search",
+	status, body, err = api.doOrg(ctx, http.MethodPost, "/management/v1/users/_search", orgID,
 		map[string]any{"queries": []map[string]any{
 			{"userNameQuery": map[string]string{"userName": username, "method": "TEXT_QUERY_METHOD_EQUALS"}},
 		}})
