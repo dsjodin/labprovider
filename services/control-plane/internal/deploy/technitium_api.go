@@ -79,7 +79,10 @@ func (t technitiumAPI) AdminToken(ctx context.Context, rc *RunCtx) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("cannot authenticate to Technitium with TECHNITIUM_ADMIN_PASSWORD or the first-boot credentials: %w", err)
 	}
-	if _, err := t.callOK(ctx, "/api/user/changePassword", url.Values{"token": {token}, "pass": {pass}}); err != nil {
+	// changePassword takes the CURRENT password (the first-boot "admin" we just
+	// authenticated with) as pass and the new one as newPass. Omitting newPass
+	// fails with "Parameter 'newPass' missing".
+	if _, err := t.callOK(ctx, "/api/user/changePassword", url.Values{"token": {token}, "pass": {"admin"}, "newPass": {pass}}); err != nil {
 		return "", fmt.Errorf("rotate the Technitium admin password: %w", err)
 	}
 	rc.Log("Rotated the Technitium admin password from the first-boot default to TECHNITIUM_ADMIN_PASSWORD.")

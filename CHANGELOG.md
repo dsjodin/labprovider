@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ## 2026-07-11 (v2 documentation: control plane is the primary path)
 
+### Fixes
+- Fix the Technitium admin-password rotation in the Go deployer (`services/control-plane/internal/deploy/technitium_api.go`, `AdminToken`), which aborted a fresh deploy with `rotate the Technitium admin password: /api/user/changePassword: status error: Parameter 'newPass' missing.`. The `changePassword` call omitted `newPass` and passed the new password as `pass`; it now sends the current (first-boot) password as `pass=admin` and the configured value as `newPass`, matching Technitium's API. Added `AdminToken` unit tests covering the first-boot rotation (asserts `newPass`/`pass`) and the idempotent re-run (no `changePassword` when the configured password already works).
+
 ### Changes
 - README leads with the v2 flow: `sudo bash install.sh`, then the web UI (`/config` wizard, `/deploy` with live progress, `/` dashboard). A required-open-ports table replaces the bootstrap's best-effort `ufw allow` calls. The bash bootstrap docs remain below under an explicit "Transitional" heading; the bash path is scheduled for removal once the control-plane path has proven parity end-to-end on a fresh host.
 - AGENTS.md and PROJECT_CONTEXT.md are rewritten to the v2 model (closing IMPROVEMENTS #13/#14): fully containerized services, Go deployers under `services/control-plane/internal/deploy/`, the schema-table validation model, the deployer structure contract, and the updated filesystem/DNS/TLS rules.
