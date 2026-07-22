@@ -4,7 +4,7 @@ Investigation and plan ONLY. No code changes, no CA rebuild in this phase.
 Approve this document before any Phase 2 work begins.
 
 Pinned version under investigation: `CA_IMAGE=docker.io/smallstep/step-ca:0.30.2`
-(config/provider-box.env.example:46). All findings below are stated for this
+(config/labprovider.env.example:46). All findings below are stated for this
 version and its bundled smallstep/nosql (v0.8.0, matching STEPCA_STORAGE.md);
 items that cannot be proven in a sandbox are called out in "Needs live
 confirmation".
@@ -14,7 +14,7 @@ confirmation".
 ## 0. Current state (what we are changing)
 
 - step-ca runs as a single container from `templates/docker-compose.step-ca.yml.tpl`,
-  data bind-mounted at `CA_DATA_DIR` (`/opt/provider-box/step-ca`).
+  data bind-mounted at `CA_DATA_DIR` (`/opt/labprovider/step-ca`).
 - Backend is embedded **BadgerDB v3** (manifest v7). No `db` stanza is written
   today; step-ca defaults to badger under `${CA_DATA_DIR}/db`.
 - Root + intermediate keypair live on the FILESYSTEM
@@ -351,10 +351,10 @@ dashboard pattern.
 
 ### 5a. New / changed files
 
-- `config/provider-box.env.example` - add a `CA_POSTGRES_*` block mirroring the
+- `config/labprovider.env.example` - add a `CA_POSTGRES_*` block mirroring the
   `NETBOX_POSTGRES_*` naming:
   `CA_POSTGRES_IMAGE`, `CA_POSTGRES_DB=stepca`, `CA_POSTGRES_USER=stepca`,
-  `CA_POSTGRES_PASSWORD`, `CA_POSTGRES_DATA_DIR=/opt/provider-box/step-ca/postgres`,
+  `CA_POSTGRES_PASSWORD`, `CA_POSTGRES_DATA_DIR=/opt/labprovider/step-ca/postgres`,
   plus a dashboard read-only role `CA_POSTGRES_RO_USER`/`CA_POSTGRES_RO_PASSWORD`.
 - `templates/docker-compose.step-ca.yml.tpl` - add a `stepca-postgres` service
   (dedicated, own bind-mount volume, healthcheck like the netbox postgres),
@@ -391,7 +391,7 @@ Preconditions (hard gates):
 Sequence:
 1. Announce a CA outage window (all issuance/renewal pauses).
 2. Back up `CA_DATA_DIR` in full; verify the backup is readable.
-3. `bootstrap/provider-box.sh --ca --remove` (stops CA, preserves data by
+3. `bootstrap/labprovider.sh --ca --remove` (stops CA, preserves data by
    current semantics) - then, for a clean rebuild, move the old data dir aside
    (do NOT delete until success is confirmed).
 4. Deploy `stepca-postgres` (empty DB) via the updated CA compose.

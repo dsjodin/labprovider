@@ -22,7 +22,7 @@ blast radius.
   the operator changes it, the DNS server's admin console is reachable on
   the lab network with default credentials.
 - Suggested fix: Add `TECHNITIUM_ADMIN_USER` / `TECHNITIUM_ADMIN_PASSWORD`
-  to `provider-box.env`, and have `--technitium` rotate the first-boot
+  to `labprovider.env`, and have `--technitium` rotate the first-boot
   password to the configured value via `/api/user/changePassword` (verified
   endpoint family in TECHNITIUM_API.md) on first bootstrap, then
   authenticate with the env credentials on re-runs.
@@ -48,7 +48,7 @@ blast radius.
 ## 3. Orphaned-token sweep only matches description-tagged tokens
 
 - What: The pre-provisioning cleanup deletes only tokens whose description
-  is exactly "provider-box dns-sync".
+  is exactly "labprovider dns-sync".
 - Where: `bootstrap/netbox.sh:479-499` (filter at line 484).
 - Why it matters: Tokens created by older code versions (before the
   description was added) or with an edited description are never retired,
@@ -65,8 +65,8 @@ blast radius.
 - What: The Docker CE install path always uses
   `https://download.docker.com/linux/debian` with the host's
   `VERSION_CODENAME`.
-- Where: `bootstrap/provider-box.sh:192` (gpg key URL),
-  `bootstrap/provider-box.sh:198-201` (repo line).
+- Where: `bootstrap/labprovider.sh:192` (gpg key URL),
+  `bootstrap/labprovider.sh:198-201` (repo line).
 - Why it matters: On Ubuntu the codename (for example `noble`) does not
   exist in the Debian repo, so `apt-get update` 404s and bootstrap fails.
   README documents the Debian assumption, but the code could just handle
@@ -126,7 +126,7 @@ blast radius.
   dashboard); kept as background, not an active spec.
 - Note: `services/dashboard` is now a first-class bootstrap module
   (`bootstrap/dashboard.sh`, flag `--dashboard`, included in `--all` last)
-  that publishes `DASHBOARD_FQDN` through `provider_box_builtin_fqdns`. The
+  that publishes `DASHBOARD_FQDN` through `labprovider_builtin_fqdns`. The
   standalone `scripts/run.sh` path is retained for manual use. Remaining
   dashboard phase-2 items (history/collector, UI auth) are tracked in
   `services/dashboard/README.md`.
@@ -153,7 +153,7 @@ blast radius.
   "three similar lines beat an abstraction" threshold.
 - Suggested fix: Hoist one `json_string_field` and one
   `require_ca_ready_for <service-label>` helper into
-  `bootstrap/provider-box.sh` beside the other shared helpers.
+  `bootstrap/labprovider.sh` beside the other shared helpers.
 - Blast radius: Medium surface (seven files) but mechanical; no behavior
   change intended.
 
@@ -214,7 +214,7 @@ blast radius.
   list understates what must not be broken.
 - Suggested change: Add Authentik, Technitium, and dns-sync to the stable
   services list; reword DNS Integration to "resolvable via the selected
-  DNS backend (generated built-in record list `provider_box_builtin_fqdns`)";
+  DNS backend (generated built-in record list `labprovider_builtin_fqdns`)";
   mention `config/dns.seed` beside `config/unbound.records` in the seeding
   section.
 - Blast radius: Documentation only.
@@ -238,14 +238,14 @@ blast radius.
   from the local env, but a variable removed from the example (like
   `TECHNITIUM_FORWARDER` was) lingers in operator envs forever with no
   signal.
-- Where: `bootstrap/provider-box.sh:87-113`.
+- Where: `bootstrap/labprovider.sh:87-113`.
 - Why it matters: Removed variables keep appearing to work (they are
   sourced and exported), masking the fact that nothing consumes them.
 - Suggested fix: Emit a non-fatal notice listing local variables that no
   longer exist in the example.
 - Blast radius: Small. One function; informational output only.
 
-No dead variables were found in `config/provider-box.env.example`: every
+No dead variables were found in `config/labprovider.env.example`: every
 active variable in the example is consumed by at least one module or
 template, and every operator-supplied variable required by the modules
 exists in the example.

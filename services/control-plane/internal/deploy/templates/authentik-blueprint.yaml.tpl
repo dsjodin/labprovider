@@ -1,6 +1,6 @@
 version: 1
 metadata:
-  name: provider-box-vcf-bootstrap
+  name: labprovider-vcf-bootstrap
 entries:
   - model: authentik_core.group
     state: present

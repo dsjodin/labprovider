@@ -41,7 +41,7 @@ type Config struct {
 
 	UpstreamTimeout time.Duration
 
-	// Deploy engine paths. ConfigPath is the managed provider-box.env the
+	// Deploy engine paths. ConfigPath is the managed labprovider.env the
 	// wizard edits; ExamplePath is the shipped example (copied into the image
 	// at build time); StatePath is the advisory deploy-state file. The engine
 	// is enabled when ExamplePath exists.
@@ -77,9 +77,9 @@ func Load() Config {
 
 		UpstreamTimeout: envDuration("CONTROL_PLANE_UPSTREAM_TIMEOUT", 5*time.Second),
 
-		ConfigPath:  envOr("CONTROL_PLANE_CONFIG_PATH", "/opt/provider-box/control-plane/provider-box.env"),
-		ExamplePath: envOr("CONTROL_PLANE_EXAMPLE_PATH", "/usr/local/share/provider-box/provider-box.env.example"),
-		StatePath:   envOr("CONTROL_PLANE_STATE_PATH", "/opt/provider-box/control-plane/state.json"),
+		ConfigPath:  envOr("CONTROL_PLANE_CONFIG_PATH", "/opt/labprovider/control-plane/labprovider.env"),
+		ExamplePath: envOr("CONTROL_PLANE_EXAMPLE_PATH", "/usr/local/share/labprovider/labprovider.env.example"),
+		StatePath:   envOr("CONTROL_PLANE_STATE_PATH", "/opt/labprovider/control-plane/state.json"),
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/model"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/model"
 )
 
 func testTarget(t *testing.T) *Target {

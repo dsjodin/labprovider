@@ -92,7 +92,7 @@ var schema = []requirement{
 
 	// dns-sync (require_dns_sync_vars). Interval and URL shapes are checked
 	// in the deployer.
-	{"PROVIDER_BOX_FQDN", []string{"dns-sync"}, []func(string) error{checkFQDN}},
+	{"LABPROVIDER_FQDN", []string{"dns-sync"}, []func(string) error{checkFQDN}},
 	{"DNS_SYNC_IMAGE", []string{"dns-sync"}, []func(string) error{checkImage}},
 	{"DNS_SYNC_DIR", []string{"dns-sync"}, []func(string) error{checkAbsPath}},
 	{"DNS_SYNC_NETBOX_URL", []string{"dns-sync"}, nil},

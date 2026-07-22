@@ -1,8 +1,8 @@
-# Standalone compose for the Provider Box control plane (read-only dashboard). Run manually - this is
-# deliberately NOT wired into bootstrap/provider-box.sh or --all (see README,
+# Standalone compose for the labprovider control plane (read-only dashboard). Run manually - this is
+# deliberately NOT wired into bootstrap/labprovider.sh or --all (see README,
 # "Phase 2"). Variables are interpolated from the shared config file:
 #
-#   docker compose --env-file ../../config/provider-box.env up -d --build
+#   docker compose --env-file ../../config/labprovider.env up -d --build
 #
 # See services/control-plane/README.md for the tokens and cert this needs.
 services:

@@ -34,7 +34,7 @@ func (k Keycloak) Deploy(ctx context.Context, rc *RunCtx) error {
 	if err := EnsureDir(runtime+"/import", 0o755, -1, -1); err != nil {
 		return err
 	}
-	if err := os.WriteFile(runtime+"/import/provider-box-realm.json", realm, 0o644); err != nil {
+	if err := os.WriteFile(runtime+"/import/labprovider-realm.json", realm, 0o644); err != nil {
 		return err
 	}
 

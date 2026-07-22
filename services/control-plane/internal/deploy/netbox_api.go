@@ -167,7 +167,7 @@ func (n *netboxAPI) provisionToken(ctx context.Context, username, password, desc
 	return "Token " + out.Key, out.Key, out.ID, nil
 }
 
-// retireTokensByDescription deletes previous provider-box tokens matching a
+// retireTokensByDescription deletes previous labprovider tokens matching a
 // description so redeploys do not accumulate live credentials. Best-effort.
 func (n *netboxAPI) retireTokensByDescription(ctx context.Context, rc *RunCtx, description, label string) {
 	var list netboxList

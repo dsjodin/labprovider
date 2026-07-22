@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Provider Box - Configuration</title>
+<title>labprovider - Configuration</title>
 <style>
   :root {
     --bg: #0f1419; --panel: #1a2029; --border: #2b333f; --fg: #d7dde5;
@@ -36,13 +36,13 @@
 </head>
 <body>
 <header>
-  <h1>Provider Box &mdash; Configuration</h1>
+  <h1>labprovider &mdash; Configuration</h1>
   <nav><a href="/">Dashboard</a><a href="/config">Configuration</a><a href="/deploy">Deploy</a></nav>
 </header>
 <main>
-  <p class="note">Edit <span class="mono">provider-box.env</span> below (or download it, fill it out
+  <p class="note">Edit <span class="mono">labprovider.env</span> below (or download it, fill it out
   locally, and paste it back). Validate shows every problem at once; Save stores the
-  file on the Provider Box host. Deploys always use the last saved version.</p>
+  file on the labprovider host. Deploys always use the last saved version.</p>
   <textarea id="cfg" spellcheck="false"></textarea>
   <div class="actions">
     <button class="primary" onclick="save()">Save</button>
@@ -55,7 +55,7 @@
   <h2 style="font-size:15px;margin-top:28px">External DNS records (dns.seed, optional)</h2>
   <p class="note">One record per line: <span class="mono">&lt;fqdn&gt; &lt;ip&gt;</span> or
   <span class="mono">&lt;fqdn&gt; &lt;ip/cidr&gt;</span> for VCF nodes, gateways, and other
-  non-Provider-Box hosts. Imported into NetBox at deploy; NetBox is the source of
+  non-labprovider hosts. Imported into NetBox at deploy; NetBox is the source of
   truth afterwards. Built-in service records are generated automatically - never add them here.
   Save an empty box to remove the file.</p>
   <textarea id="seed" spellcheck="false" style="height:20vh"></textarea>
@@ -71,7 +71,7 @@ const issuesEl = document.getElementById('issues');
 async function load() {
   const res = await fetch('/api/config');
   document.getElementById('cfg').value = await res.text();
-  const saved = res.headers.get('X-Provider-Box-Config-Saved') === 'true';
+  const saved = res.headers.get('X-labprovider-Config-Saved') === 'true';
   statusEl.className = '';
   statusEl.textContent = saved ? 'Loaded the saved configuration.'
     : 'No configuration saved yet - this is the example template. Fill it out and save.';

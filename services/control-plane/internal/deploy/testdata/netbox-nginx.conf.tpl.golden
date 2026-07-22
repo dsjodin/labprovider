@@ -2,8 +2,8 @@ server {
   listen 8443 ssl;
   server_name netbox.sddc.lab;
 
-  ssl_certificate /etc/provider-box/certs/netbox.crt;
-  ssl_certificate_key /etc/provider-box/certs/netbox.key;
+  ssl_certificate /etc/labprovider/certs/netbox.crt;
+  ssl_certificate_key /etc/labprovider/certs/netbox.key;
 
   client_max_body_size 25m;
 

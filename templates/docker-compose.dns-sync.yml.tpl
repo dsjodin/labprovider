@@ -12,11 +12,11 @@ services:
       - "${DNS_SYNC_TECHNITIUM_HOST}:127.0.0.1"
     environment:
       NETBOX_URL: "${DNS_SYNC_NETBOX_URL}"
-      NETBOX_TOKEN_FILE: "/run/provider-box/secrets/netbox.token"
-      NETBOX_CA_BUNDLE: "/etc/provider-box/certs/root_ca.crt"
+      NETBOX_TOKEN_FILE: "/run/labprovider/secrets/netbox.token"
+      NETBOX_CA_BUNDLE: "/etc/labprovider/certs/root_ca.crt"
       TECHNITIUM_URL: "${DNS_SYNC_TECHNITIUM_URL}"
-      TECHNITIUM_TOKEN_FILE: "/run/provider-box/secrets/technitium.token"
-      TECHNITIUM_CA_BUNDLE: "/etc/provider-box/certs/root_ca.crt"
+      TECHNITIUM_TOKEN_FILE: "/run/labprovider/secrets/technitium.token"
+      TECHNITIUM_CA_BUNDLE: "/etc/labprovider/certs/root_ca.crt"
       DNS_SYNC_INTERVAL: "${DNS_SYNC_INTERVAL}"
       DNS_SYNC_BUILTIN_RECORDS: "${DNS_SYNC_BUILTIN_RECORDS}"
       # Non-admin Technitium user the read-only dashboard authenticates as.
@@ -25,5 +25,5 @@ services:
       # empty disables the grant.
       DNS_SYNC_TECHNITIUM_DASHBOARD_USER: "${DNS_SYNC_TECHNITIUM_DASHBOARD_USER}"
     volumes:
-      - ${DNS_SYNC_SECRETS_DIR:?DNS_SYNC_SECRETS_DIR must be set (empty would create a blank bind-mount source)}:/run/provider-box/secrets:ro
-      - ${CA_DATA_DIR:?CA_DATA_DIR must be set (empty would create a blank bind-mount source)}/certs/root_ca.crt:/etc/provider-box/certs/root_ca.crt:ro
+      - ${DNS_SYNC_SECRETS_DIR:?DNS_SYNC_SECRETS_DIR must be set (empty would create a blank bind-mount source)}:/run/labprovider/secrets:ro
+      - ${CA_DATA_DIR:?CA_DATA_DIR must be set (empty would create a blank bind-mount source)}/certs/root_ca.crt:/etc/labprovider/certs/root_ca.crt:ro

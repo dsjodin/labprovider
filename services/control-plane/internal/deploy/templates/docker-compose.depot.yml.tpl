@@ -8,5 +8,5 @@ services:
     volumes:
       - {{.WORKDIR}}/depot/nginx.conf:/etc/nginx/nginx.conf:ro
       - {{.DEPOT_DATA_DIR}}:/usr/share/nginx/html:ro
-      - {{.DEPOT_CERT_DIR}}:/etc/provider-box/certs:ro
+      - {{.DEPOT_CERT_DIR}}:/etc/labprovider/certs:ro
       - {{.DEPOT_AUTH_DIR}}:/etc/nginx/auth:ro

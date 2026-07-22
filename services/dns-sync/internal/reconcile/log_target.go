@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/model"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/model"
 )
 
 // LogTarget is the scaffold-time Target. It treats Technitium as an empty

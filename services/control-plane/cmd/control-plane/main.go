@@ -11,14 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dsjodin/provider-box/services/control-plane/internal/certs"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/config"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/deploy"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/dns"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/docker"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/envfile"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/ipam"
-	"github.com/dsjodin/provider-box/services/control-plane/internal/server"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/certs"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/config"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/deploy"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/dns"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/docker"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/envfile"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/ipam"
+	"github.com/dsjodin/labprovider/services/control-plane/internal/server"
 )
 
 func main() {

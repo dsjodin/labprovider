@@ -5,6 +5,6 @@ input(type="imudp" port="514")
 input(type="imtcp" port="514")
 
 template(name="PerHostLogs" type="string"
-         string="/opt/provider-box/syslog/logs/%HOSTNAME%/%PROGRAMNAME%.log")
+         string="/opt/labprovider/syslog/logs/%HOSTNAME%/%PROGRAMNAME%.log")
 
 *.* action(type="omfile" dynaFile="PerHostLogs" createDirs="on")

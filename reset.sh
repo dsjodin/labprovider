@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Reset a Provider Box test host so install.sh can run from a clean slate.
+# Reset a labprovider test host so install.sh can run from a clean slate.
 #
 # Removes ALL Docker state on this host (containers, images, volumes,
-# networks, build cache - not just Provider Box's) and repoints the host
+# networks, build cache - not just labprovider's) and repoints the host
 # resolver at systemd-resolved, since removing the Technitium container
 # while /etc/resolv.conf targets 127.0.0.1 would leave the host without DNS.
 #
 # Usage:
 #   sudo bash reset.sh          # asks for confirmation
 #   sudo bash reset.sh --yes    # no prompt
-#   sudo bash reset.sh --data   # ALSO wipe /opt/provider-box (certs, CA,
+#   sudo bash reset.sh --data   # ALSO wipe /opt/labprovider (certs, CA,
 #                               # postgres data, saved config - everything)
 set -Eeuo pipefail
 
@@ -31,7 +31,7 @@ for arg in "$@"; do
 done
 
 echo "This removes ALL Docker containers, images, volumes, networks, and build cache on this host."
-[[ "$WIPE_DATA" -eq 1 ]] && echo "It will ALSO delete /opt/provider-box (CA keys, postgres data, saved config)."
+[[ "$WIPE_DATA" -eq 1 ]] && echo "It will ALSO delete /opt/labprovider (CA keys, postgres data, saved config)."
 if [[ "$ASSUME_YES" -ne 1 ]]; then
   read -r -p "Continue? [y/N] " answer
   [[ "$answer" == "y" || "$answer" == "Y" ]] || { echo "Aborted."; exit 0; }
@@ -60,8 +60,8 @@ else
 fi
 
 if [[ "$WIPE_DATA" -eq 1 ]]; then
-  echo "Deleting /opt/provider-box."
-  rm -rf /opt/provider-box
+  echo "Deleting /opt/labprovider."
+  rm -rf /opt/labprovider
 fi
 
 getent hosts deb.debian.org >/dev/null || \

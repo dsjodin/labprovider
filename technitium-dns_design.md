@@ -1,6 +1,6 @@
 # technitium-dns — Design Blueprint
 
-Replace provider-box's Unbound stage with **Technitium DNS Server** to get an API- and dashboard-driven DNS layer, with **NetBox as the source of truth** and a reconcile sync pushing records into Technitium.
+Replace labprovider's Unbound stage with **Technitium DNS Server** to get an API- and dashboard-driven DNS layer, with **NetBox as the source of truth** and a reconcile sync pushing records into Technitium.
 
 > Decision context: Unbound in 1.0 is config-file-rendered and re-run-driven — predictable, but it can't be edited live (runtime changes get overwritten on the next `--unbound`) and has no API or UI. Technitium gives a real HTTP API + web console in a single container, doing both authoritative and recursive resolution. This is the piece that turns "edit a flat file and re-render" into "NetBox drives DNS."
 
@@ -65,7 +65,7 @@ Reconcile beats event/webhook here: simpler, survives missed events and restarts
 
 ## 5. Bring-up seed file (first-deploy pre-population)
 
-**The problem it solves.** At first deploy there is a chicken-and-egg: the lab needs working DNS *before* the NetBox-driven pipeline is live. NetBox isn't populated yet, the sync needs NetBox reachable, and NetBox's own FQDN (and the other service FQDNs) must already resolve. VCF nodes, gateways, and the provider-box services need names immediately. The seed file gives the operator a declarative list of records that the bootstrap applies **directly to Technitium at deploy time**, so DNS is functional from the first boot — independent of NetBox readiness.
+**The problem it solves.** At first deploy there is a chicken-and-egg: the lab needs working DNS *before* the NetBox-driven pipeline is live. NetBox isn't populated yet, the sync needs NetBox reachable, and NetBox's own FQDN (and the other service FQDNs) must already resolve. VCF nodes, gateways, and the labprovider services need names immediately. The seed file gives the operator a declarative list of records that the bootstrap applies **directly to Technitium at deploy time**, so DNS is functional from the first boot — independent of NetBox readiness.
 
 **Format — reuse what already exists.** Use the same format as 1.0's `unbound.records`:
 
@@ -85,7 +85,7 @@ Once NetBox holds them, the ongoing reconcile sees the seeded records as *desire
 
 **Operator discipline (same lesson again).** The seed file is a **first-deploy convenience, not the ongoing edit path.** After bring-up, NetBox is the truth — editing `dns.seed` later and expecting reconcile to honor it will disappoint, because reconcile reflects NetBox. Re-applying the seed on a later deploy is safe (idempotent) but the canonical place to change records post-bootstrap is NetBox.
 
-**Auto-generated service records are separate.** The bootstrap still auto-generates provider-box's own service FQDNs (ca, netbox, auth, depot, s3, sftp, syslog -> host IP) and applies them at bring-up, exactly as 1.0's Unbound did — the operator does **not** need to put these in the seed file. The seed file is for *external* infra (VCF nodes, gateways, vCenter, ESXi, etc.).
+**Auto-generated service records are separate.** The bootstrap still auto-generates labprovider's own service FQDNs (ca, netbox, auth, depot, s3, sftp, syslog -> host IP) and applies them at bring-up, exactly as 1.0's Unbound did — the operator does **not** need to put these in the seed file. The seed file is for *external* infra (VCF nodes, gateways, vCenter, ESXi, etc.).
 
 **Alternative if you don't want everything in NetBox.** If some seeded records should never live in NetBox, the other option is a non-destructive reconcile: tag sync-managed records (or scope the sync to zones/records it owns) so it only deletes what it created, leaving seed/console records alone. The import-to-NetBox approach above is preferred for a single source of truth; tagging is the fallback if you need DNS records outside NetBox's scope.
 
@@ -104,9 +104,9 @@ VCF is strict about forward+reverse consistency, so PTR correctness is not optio
 
 ## 7. Relationship to existing DNS (MS DNS today)
 
-Currently the lab uses MS DNS, and provider-box's Unbound was skipped. Two coherent end states:
+Currently the lab uses MS DNS, and labprovider's Unbound was skipped. Two coherent end states:
 
-- **Technitium becomes the lab's DNS**, replacing MS DNS. Seed at bring-up, then NetBox->Technitium sync is the pipeline; clients/VCF point at Technitium. Cleanest for an all-in-one provider-box.
+- **Technitium becomes the lab's DNS**, replacing MS DNS. Seed at bring-up, then NetBox->Technitium sync is the pipeline; clients/VCF point at Technitium. Cleanest for an all-in-one labprovider.
 - **Technitium runs but MS DNS stays primary** — less useful; mostly only worth it if MS DNS must remain for non-lab reasons.
 
 Migration aid: the `unbound.records` you already exported from MS DNS is a ready **seed file** (§5) — drop it in as `config/dns.seed` and first bring-up populates both Technitium and NetBox from it.
@@ -125,7 +125,7 @@ Bonus: the **IPv4/IPv6 family-mismatch** validation error you hit (stray AAAA fr
 
 ## 9. Bootstrap integration
 
-- New stage: `provider-box.sh --technitium` (or `--dns` with a backend choice). Deprecate or keep `--unbound` alongside.
+- New stage: `labprovider.sh --technitium` (or `--dns` with a backend choice). Deprecate or keep `--unbound` alongside.
 - Neither DNS stage is pulled into `--all` without an explicit opt-in/service list — fix the `--all` trap at the same time.
 - **Bring-up order**: deploy Technitium -> apply auto-generated service records + the `dns.seed` file directly to Technitium (DNS now works) -> when NetBox is up, import the seed into NetBox -> start the `dns-sync` timer. DNS is usable well before NetBox is ready.
 - Does **not** rewrite the host's `/etc/resolv.conf` or disable `systemd-resolved` unless the operator opts in — 1.0's Unbound did this unconditionally and it's hostile to existing-DNS setups.

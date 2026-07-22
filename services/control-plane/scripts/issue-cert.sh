@@ -6,12 +6,12 @@
 # explicitly below so the served cert validates against the step-ca root.
 #
 # Usage: services/control-plane/scripts/issue-cert.sh [ENV_FILE]
-# ENV_FILE defaults to config/provider-box.env at the repo root.
+# ENV_FILE defaults to config/labprovider.env at the repo root.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-ENV_FILE="${1:-${REPO_ROOT}/config/provider-box.env}"
+ENV_FILE="${1:-${REPO_ROOT}/config/labprovider.env}"
 
 fail() {
   echo "Error: $*" >&2

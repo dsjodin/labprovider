@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# The Provider Box dashboard is a standalone, read-only "current state" view of
+# The labprovider dashboard is a standalone, read-only "current state" view of
 # the other services (services/control-plane). This module wires the existing
 # service into bootstrap; it does not rewrite it. Cert issuance and startup
 # reuse the service's own scripts (scripts/issue-cert.sh and
@@ -113,7 +113,7 @@ issue_dashboard_certificate() {
 
 # Reuse the service's run.sh: it resolves CONTROL_PLANE_DOCKER_GID from the host
 # docker group, validates the bind-mount vars, and runs the standalone compose
-# (--env-file provider-box.env, up -d --build).
+# (--env-file labprovider.env, up -d --build).
 start_dashboard_stack() {
   "${REPO_ROOT}/services/control-plane/scripts/run.sh" "${ENV_FILE}" || \
     fail "Failed to start the dashboard compose stack."

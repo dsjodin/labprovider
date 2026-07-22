@@ -1,6 +1,6 @@
 services:
   chrony:
-    image: provider-box/chrony:0.1.0
+    image: labprovider/chrony:0.1.0
     restart: unless-stopped
     # Host networking so NTP serves on the host's UDP 123; SYS_TIME is the one
     # capability chronyd needs to discipline the host clock.
@@ -10,5 +10,5 @@ services:
     cap_add:
       - SYS_TIME
     volumes:
-      - /opt/provider-box/runtime/chrony/chrony.conf:/etc/chrony/chrony.conf:ro
-      - /opt/provider-box/chrony:/var/lib/chrony
+      - /opt/labprovider/runtime/chrony/chrony.conf:/etc/chrony/chrony.conf:ro
+      - /opt/labprovider/chrony:/var/lib/chrony

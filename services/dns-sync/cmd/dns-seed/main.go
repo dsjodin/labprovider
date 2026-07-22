@@ -14,9 +14,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/netbox"
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/seed"
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/technitium"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/netbox"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/seed"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/technitium"
 )
 
 func main() {

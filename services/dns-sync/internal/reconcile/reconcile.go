@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/dsjodin/provider-box/services/dns-sync/internal/model"
+	"github.com/dsjodin/labprovider/services/dns-sync/internal/model"
 )
 
 // Source produces the desired record set. NetBox is the only implementation
@@ -107,7 +107,7 @@ func Diff(desired, current []model.Record, currentZones []string) []model.Op {
 
 	desiredSet := keySet(desired)
 	currentSet := keySet(current)
-	// The desired slice can contain duplicates (PROVIDER_BOX_FQDN comes from
+	// The desired slice can contain duplicates (LABPROVIDER_FQDN comes from
 	// both NetBox's canonical host IP and the built-in record list). Emit one
 	// create per key, or the second create fails "record already exists" and
 	// aborts the pass on a fresh zone.

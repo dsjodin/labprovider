@@ -1,12 +1,12 @@
-# Provider Box Dashboard
+# labprovider Dashboard
 
-A **read-only** "current state" view of the Provider Box services. It queries
+A **read-only** "current state" view of the labprovider services. It queries
 each service's API on request and renders the result. There is no persistent
 store, no history, and no writes to any upstream.
 
 Two supported ways to run it:
 
-- **Bootstrap module (recommended):** `sudo bash bootstrap/provider-box.sh
+- **Bootstrap module (recommended):** `sudo bash bootstrap/labprovider.sh
   --dashboard`. Also deployed by `--all` (last). This issues the cert, brings up
   the stack, verifies HTTPS, and publishes `CONTROL_PLANE_FQDN` via DNS. See
   "Bootstrap module" below.
@@ -36,7 +36,7 @@ page or fails the request.
 3. **IPAM (NetBox)** - prefix and IP-address counts and the `dns_name`
    inventory. Read with a dedicated, minimum-read-scope token.
 4. **Services (Docker)** - container name, state, health, uptime and image tag
-   for the Provider Box stacks, read from the Docker socket (mounted read-only).
+   for the labprovider stacks, read from the Docker socket (mounted read-only).
 5. **Recent errors (logs)** - the last error-level lines per service from a
    bounded log tail. `dns-sync` emits slog JSON, so `level>=error` is parsed;
    non-JSON lines fall back to a token match.
@@ -70,7 +70,7 @@ page or fails the request.
 ## Bootstrap module
 
 `bootstrap/dashboard.sh` (flag `--dashboard`) wires this service into
-`provider-box.sh`. It does not rewrite the service - cert issuance and startup
+`labprovider.sh`. It does not rewrite the service - cert issuance and startup
 reuse `scripts/issue-cert.sh` and `scripts/run.sh`, the same code the
 manual path uses. The module follows the standard five-step flow:
 
@@ -81,20 +81,20 @@ manual path uses. The module follows the standard five-step flow:
 3. **Issue** the TLS cert from step-ca as a full chain (leaf + intermediate) via
    `scripts/issue-cert.sh`.
 4. **Start** the compose stack via `scripts/run.sh` (resolves the host docker
-   gid, `--env-file provider-box.env`, `up -d --build`).
+   gid, `--env-file labprovider.env`, `up -d --build`).
 5. **Verify** `https://${CONTROL_PLANE_FQDN}:${port}/healthz` returns 200 over the
    step-ca chain (bounded poll, fail fast).
 
 ```sh
-sudo bash bootstrap/provider-box.sh --ca
-sudo bash bootstrap/provider-box.sh --technitium
-sudo bash bootstrap/provider-box.sh --netbox
-sudo bash bootstrap/provider-box.sh --dns-sync
-sudo bash bootstrap/provider-box.sh --dashboard
-sudo bash bootstrap/provider-box.sh --dashboard --remove
+sudo bash bootstrap/labprovider.sh --ca
+sudo bash bootstrap/labprovider.sh --technitium
+sudo bash bootstrap/labprovider.sh --netbox
+sudo bash bootstrap/labprovider.sh --dns-sync
+sudo bash bootstrap/labprovider.sh --dashboard
+sudo bash bootstrap/labprovider.sh --dashboard --remove
 ```
 
-**DNS:** `--dashboard` (via `provider_box_builtin_fqdns`) publishes
+**DNS:** `--dashboard` (via `labprovider_builtin_fqdns`) publishes
 `CONTROL_PLANE_FQDN -> HOST_IP`: `dns-sync` synthesizes the record on its next
 pass, so `dashboard.<domain>` resolves by name after `--dns-sync`.
 
@@ -115,7 +115,7 @@ the root cert), and the services you want panels for (`--technitium`,
 `--netbox`, `--dns-sync`).
 
 1. **Add the dashboard variables to your config.** Copy the `CONTROL_PLANE_*` block
-   from `config/provider-box.env.example` into your `config/provider-box.env`
+   from `config/labprovider.env.example` into your `config/labprovider.env`
    and adjust. (`scripts/run.sh` resolves `CONTROL_PLANE_DOCKER_GID` from the host
    docker group automatically, so you can leave the example default.)
 
@@ -144,7 +144,7 @@ the root cert), and the services you want panels for (`--technitium`,
    ```
 
    This runs the documented compose command
-   (`docker compose --env-file ../../config/provider-box.env up -d --build`) with
+   (`docker compose --env-file ../../config/labprovider.env up -d --build`) with
    `CONTROL_PLANE_DOCKER_GID` resolved from the host docker group. Then browse
    `https://${CONTROL_PLANE_FQDN}:8445/` (the `CONTROL_PLANE_ADDR` port). To stop it:
    `services/control-plane/scripts/run.sh -- down`.
@@ -194,7 +194,7 @@ so create a **non-admin** user and use its token (the dashboard only calls
 ## Configuration
 
 All settings are environment variables (see the `CONTROL_PLANE_*` block in
-`config/provider-box.env.example` for the documented set). The binary also
+`config/labprovider.env.example` for the documented set). The binary also
 reads them directly, so it can run outside Docker for development:
 
 ```sh

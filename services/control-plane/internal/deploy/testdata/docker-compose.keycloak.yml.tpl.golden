@@ -12,9 +12,9 @@ services:
     ports:
       - "8443:8443"
     volumes:
-      - /opt/provider-box/keycloak/certs:/opt/keycloak/certs:ro
-      - /opt/provider-box/keycloak/data:/opt/keycloak/data
-      - /opt/provider-box/runtime/keycloak/import:/opt/keycloak/data/import:ro
+      - /opt/labprovider/keycloak/certs:/opt/keycloak/certs:ro
+      - /opt/labprovider/keycloak/data:/opt/keycloak/data
+      - /opt/labprovider/runtime/keycloak/import:/opt/keycloak/data/import:ro
     command:
       - start
       - --import-realm

@@ -125,18 +125,18 @@ sftp-admin|${SFTP_FQDN}|tcp|${SFTP_ADMIN_PORT}
   export NETBOX_PROVIDER_SERVICES
 }
 
-build_netbox_provider_box_host_description() {
-  NETBOX_PROVIDER_BOX_HOST_DESCRIPTION="Provider Box services: ${DNS_FQDN}, ${CA_FQDN}, ${DEPOT_FQDN}, ${KEYCLOAK_FQDN}, ${NETBOX_FQDN}, ${S3_FQDN}, ${SFTP_FQDN}, ${SYSLOG_FQDN}"
-  export NETBOX_PROVIDER_BOX_HOST_DESCRIPTION
+build_netbox_labprovider_host_description() {
+  NETBOX_LABPROVIDER_HOST_DESCRIPTION="labprovider services: ${DNS_FQDN}, ${CA_FQDN}, ${DEPOT_FQDN}, ${KEYCLOAK_FQDN}, ${NETBOX_FQDN}, ${S3_FQDN}, ${SFTP_FQDN}, ${SYSLOG_FQDN}"
+  export NETBOX_LABPROVIDER_HOST_DESCRIPTION
 }
 
 require_netbox_vars() {
   local var
-  for var in PROVIDER_BOX_FQDN DNS_FQDN CA_FQDN CA_PORT DEPOT_FQDN DEPOT_HTTP_PORT DEPOT_HTTPS_PORT KEYCLOAK_FQDN KEYCLOAK_PORT NETBOX_FQDN NETBOX_PORT S3_FQDN S3_PORT SFTP_FQDN SFTP_PORT SFTP_ADMIN_PORT SYSLOG_FQDN SYSLOG_PORT NETBOX_DIR NETBOX_MEDIA_DIR NETBOX_POSTGRES_DATA_DIR NETBOX_REDIS_DATA_DIR NETBOX_IMAGE NETBOX_POSTGRES_IMAGE NETBOX_REDIS_IMAGE NETBOX_NGINX_IMAGE NETBOX_POSTGRES_DB NETBOX_POSTGRES_USER NETBOX_POSTGRES_PASSWORD NETBOX_REDIS_PASSWORD NETBOX_SECRET_KEY NETBOX_ALLOWED_HOSTS NETBOX_CSRF_TRUSTED_ORIGINS NETBOX_SUPERUSER_NAME NETBOX_SUPERUSER_EMAIL NETBOX_SUPERUSER_PASSWORD; do
+  for var in LABPROVIDER_FQDN DNS_FQDN CA_FQDN CA_PORT DEPOT_FQDN DEPOT_HTTP_PORT DEPOT_HTTPS_PORT KEYCLOAK_FQDN KEYCLOAK_PORT NETBOX_FQDN NETBOX_PORT S3_FQDN S3_PORT SFTP_FQDN SFTP_PORT SFTP_ADMIN_PORT SYSLOG_FQDN SYSLOG_PORT NETBOX_DIR NETBOX_MEDIA_DIR NETBOX_POSTGRES_DATA_DIR NETBOX_REDIS_DATA_DIR NETBOX_IMAGE NETBOX_POSTGRES_IMAGE NETBOX_REDIS_IMAGE NETBOX_NGINX_IMAGE NETBOX_POSTGRES_DB NETBOX_POSTGRES_USER NETBOX_POSTGRES_PASSWORD NETBOX_REDIS_PASSWORD NETBOX_SECRET_KEY NETBOX_ALLOWED_HOSTS NETBOX_CSRF_TRUSTED_ORIGINS NETBOX_SUPERUSER_NAME NETBOX_SUPERUSER_EMAIL NETBOX_SUPERUSER_PASSWORD; do
     [[ -n "${!var:-}" ]] || fail "Missing required variable: $var"
   done
 
-  validate_var_fqdn "${PROVIDER_BOX_FQDN}"
+  validate_var_fqdn "${LABPROVIDER_FQDN}"
   validate_var_fqdn "${DNS_FQDN}"
   validate_var_fqdn "${CA_FQDN}"
   validate_var_port "${CA_PORT}"
@@ -216,7 +216,7 @@ issue_netbox_certificates() {
   local cert_dir="${NETBOX_DIR}/certs"
   local cert_file="${cert_dir}/netbox.crt"
   local key_file="${cert_dir}/netbox.key"
-  local cert_dir_in_container="/etc/provider-box/netbox-certs"
+  local cert_dir_in_container="/etc/labprovider/netbox-certs"
   local password_file_in_container="/home/step/${CA_PASSWORD_FILE#${CA_DATA_DIR}/}"
 
   install -d -m 0755 "${cert_dir}"
@@ -285,7 +285,7 @@ prepare_netbox_directories() {
 render_netbox_stack() {
   build_netbox_dns_seed_block
   build_netbox_service_seed_block
-  build_netbox_provider_box_host_description
+  build_netbox_labprovider_host_description
   render_template "${TEMPLATE_DIR}/docker-compose.netbox.yml.tpl" "${NETBOX_DIR}/docker-compose.yml"
   DOLLAR='$'
   export DOLLAR
@@ -473,11 +473,11 @@ provision_dns_sync_netbox_token() {
     echo "Stored dns-sync NetBox token was rejected (HTTP ${code}); provisioning a replacement."
   fi
 
-  # Housekeeping: retire previous provider-box dns-sync tokens so redeploys
+  # Housekeeping: retire previous labprovider dns-sync tokens so redeploys
   # do not accumulate live credentials.
-  netbox_retire_tokens_by_description "provider-box%20dns-sync" "dns-sync"
+  netbox_retire_tokens_by_description "labprovider%20dns-sync" "dns-sync"
 
-  response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"${NETBOX_SUPERUSER_NAME}\",\"password\":\"${NETBOX_SUPERUSER_PASSWORD}\",\"description\":\"provider-box dns-sync\"}")" || \
+  response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"${NETBOX_SUPERUSER_NAME}\",\"password\":\"${NETBOX_SUPERUSER_PASSWORD}\",\"description\":\"labprovider dns-sync\"}")" || \
     fail "Failed to provision a dns-sync NetBox token."
   key="$(printf '%s' "${response}" | json_string_field key)"
   token="$(printf '%s' "${response}" | json_string_field token)"
@@ -503,7 +503,7 @@ provision_dns_sync_netbox_token() {
   echo "Provisioned a dns-sync NetBox token at: ${token_file}"
 }
 
-# Retire previous provider-box tokens matching a description so redeploys do not
+# Retire previous labprovider tokens matching a description so redeploys do not
 # accumulate live credentials. Best-effort: enumeration and delete failures are
 # reported and skipped, never fatal. $1 is the URL-encoded description filter;
 # $2 is a human label for the log lines.
@@ -611,11 +611,11 @@ provision_dashboard_netbox_token() {
   fi
   [[ -n "${user_id}" ]] || fail "Failed to create or find the dashboard NetBox service user."
 
-  # Housekeeping: retire previous provider-box dashboard tokens so redeploys do
+  # Housekeeping: retire previous labprovider dashboard tokens so redeploys do
   # not accumulate live credentials.
-  netbox_retire_tokens_by_description "provider-box%20dashboard" "dashboard"
+  netbox_retire_tokens_by_description "labprovider%20dashboard" "dashboard"
 
-  response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"dashboard\",\"password\":\"${dash_pass}\",\"description\":\"provider-box dashboard\",\"write_enabled\":false}")" || \
+  response="$(netbox_api_request POST /api/users/tokens/provision/ "{\"username\":\"dashboard\",\"password\":\"${dash_pass}\",\"description\":\"labprovider dashboard\",\"write_enabled\":false}")" || \
     fail "Failed to provision a dashboard NetBox token."
   key="$(printf '%s' "${response}" | json_string_field key)"
   token="$(printf '%s' "${response}" | json_string_field token)"
@@ -662,9 +662,9 @@ ensure_netbox_site() {
   local site_id
   site_id="$(netbox_get_object_id /api/dcim/sites/ "name=Provider%20Box")"
   if [[ -z "${site_id}" ]]; then
-    site_id="$(netbox_create_object /api/dcim/sites/ '{"name":"Provider Box","slug":"provider-box","status":"active"}')"
+    site_id="$(netbox_create_object /api/dcim/sites/ '{"name":"labprovider","slug":"labprovider","status":"active"}')"
   fi
-  [[ -n "${site_id}" ]] || fail "Failed to create or find the Provider Box site in NetBox."
+  [[ -n "${site_id}" ]] || fail "Failed to create or find the labprovider site in NetBox."
   NETBOX_SITE_ID="${site_id}"
 }
 
@@ -672,9 +672,9 @@ ensure_netbox_manufacturer() {
   local manufacturer_id
   manufacturer_id="$(netbox_get_object_id /api/dcim/manufacturers/ "name=Provider%20Box")"
   if [[ -z "${manufacturer_id}" ]]; then
-    manufacturer_id="$(netbox_create_object /api/dcim/manufacturers/ '{"name":"Provider Box","slug":"provider-box"}')"
+    manufacturer_id="$(netbox_create_object /api/dcim/manufacturers/ '{"name":"labprovider","slug":"labprovider"}')"
   fi
-  [[ -n "${manufacturer_id}" ]] || fail "Failed to create or find the Provider Box manufacturer in NetBox."
+  [[ -n "${manufacturer_id}" ]] || fail "Failed to create or find the labprovider manufacturer in NetBox."
   NETBOX_MANUFACTURER_ID="${manufacturer_id}"
 }
 
@@ -682,10 +682,10 @@ ensure_netbox_device_type() {
   local device_type_id payload
   device_type_id="$(netbox_get_object_id /api/dcim/device-types/ "model=Provider%20Box")"
   if [[ -z "${device_type_id}" ]]; then
-    payload="$(printf '{"manufacturer":%s,"model":"Provider Box","slug":"provider-box"}' "${NETBOX_MANUFACTURER_ID}")"
+    payload="$(printf '{"manufacturer":%s,"model":"labprovider","slug":"labprovider"}' "${NETBOX_MANUFACTURER_ID}")"
     device_type_id="$(netbox_create_object /api/dcim/device-types/ "${payload}")"
   fi
-  [[ -n "${device_type_id}" ]] || fail "Failed to create or find the Provider Box device type in NetBox."
+  [[ -n "${device_type_id}" ]] || fail "Failed to create or find the labprovider device type in NetBox."
   NETBOX_DEVICE_TYPE_ID="${device_type_id}"
 }
 
@@ -701,8 +701,8 @@ ensure_netbox_device_role() {
 
 ensure_netbox_device() {
   local device_id create_payload update_payload
-  device_id="$(netbox_get_object_id /api/dcim/devices/ "name=provider-box")"
-  create_payload="$(printf '{"name":"provider-box","site":%s,"device_type":%s,"role":%s,"status":"active"}' "${NETBOX_SITE_ID}" "${NETBOX_DEVICE_TYPE_ID}" "${NETBOX_DEVICE_ROLE_ID}")"
+  device_id="$(netbox_get_object_id /api/dcim/devices/ "name=labprovider")"
+  create_payload="$(printf '{"name":"labprovider","site":%s,"device_type":%s,"role":%s,"status":"active"}' "${NETBOX_SITE_ID}" "${NETBOX_DEVICE_TYPE_ID}" "${NETBOX_DEVICE_ROLE_ID}")"
   update_payload="$(printf '{"site":%s,"device_type":%s,"role":%s,"status":"active"}' "${NETBOX_SITE_ID}" "${NETBOX_DEVICE_TYPE_ID}" "${NETBOX_DEVICE_ROLE_ID}")"
 
   if [[ -z "${device_id}" ]]; then
@@ -711,7 +711,7 @@ ensure_netbox_device() {
     netbox_patch_object /api/dcim/devices/ "${device_id}" "${update_payload}"
   fi
 
-  [[ -n "${device_id}" ]] || fail "Failed to create or find the Provider Box device in NetBox."
+  [[ -n "${device_id}" ]] || fail "Failed to create or find the labprovider device in NetBox."
   NETBOX_DEVICE_ID="${device_id}"
 }
 
@@ -776,20 +776,20 @@ ensure_netbox_ip_address() {
   fi
 }
 
-ensure_provider_box_host_ip_address() {
+ensure_labprovider_host_ip_address() {
   local address prefix
   local ip_id payload
 
   if value_has_cidr "${HOST_IP}"; then
     prefix="$(cidr_to_network "${HOST_IP}")"
-    ensure_netbox_prefix "${prefix}" "provider-box"
+    ensure_netbox_prefix "${prefix}" "labprovider"
     address="${HOST_IP}"
   else
     address="${HOST_IPV4}/32"
   fi
 
   ip_id="$(netbox_get_object_id /api/ipam/ip-addresses/ "address=${address}")"
-  payload="$(printf '{"address":"%s","dns_name":"%s","status":"active","description":"%s"}' "${address}" "${PROVIDER_BOX_FQDN}" "${NETBOX_PROVIDER_BOX_HOST_DESCRIPTION}")"
+  payload="$(printf '{"address":"%s","dns_name":"%s","status":"active","description":"%s"}' "${address}" "${LABPROVIDER_FQDN}" "${NETBOX_LABPROVIDER_HOST_DESCRIPTION}")"
 
   if [[ -z "${ip_id}" ]]; then
     netbox_create_object /api/ipam/ip-addresses/ "${payload}" >/dev/null
@@ -807,7 +807,7 @@ seed_netbox_via_api() {
   ensure_netbox_device_type
   ensure_netbox_device_role
   ensure_netbox_device
-  ensure_provider_box_host_ip_address
+  ensure_labprovider_host_ip_address
 
   while IFS='|' read -r name fqdn protocol port; do
     [[ -n "${name}" ]] || continue

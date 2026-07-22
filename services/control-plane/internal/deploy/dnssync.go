@@ -26,7 +26,7 @@ func (DNSSync) Deps() []string { return []string{"netbox", "technitium"} }
 // dnsSyncSourceDirs are the candidate build contexts: the image-baked copy
 // first, the repo checkout as the fallback for non-container runs.
 var dnsSyncSourceDirs = []string{
-	"/usr/local/share/provider-box/services/dns-sync",
+	"/usr/local/share/labprovider/services/dns-sync",
 	"services/dns-sync",
 }
 
@@ -119,8 +119,8 @@ func (d DNSSync) Deploy(ctx context.Context, rc *RunCtx) error {
 	// its "reconcile failed" line names the exact op Technitium rejected
 	// (Apply stops at the first failing op, which blocks everything ordered
 	// after it - the built-ins are last).
-	rc.Log("Verifying dns-sync populated the lab zone (%s via 127.0.0.1).", env["PROVIDER_BOX_FQDN"])
-	if err := waitRecordResolves(ctx, env["PROVIDER_BOX_FQDN"], 45, 2*time.Second); err != nil {
+	rc.Log("Verifying dns-sync populated the lab zone (%s via 127.0.0.1).", env["LABPROVIDER_FQDN"])
+	if err := waitRecordResolves(ctx, env["LABPROVIDER_FQDN"], 45, 2*time.Second); err != nil {
 		tailDNSSyncLogs(ctx, rc, cmp)
 		return fmt.Errorf("dns-sync did not populate the lab zone (see the log tail above; is the canonical host IP in NetBox?): %w", err)
 	}
@@ -132,7 +132,7 @@ func (d DNSSync) Deploy(ctx context.Context, rc *RunCtx) error {
 			return fmt.Errorf("built-in service record %s does not resolve via Technitium (see the log tail above): %w", fqdn, err)
 		}
 	}
-	rc.Log("All built-in Provider Box service FQDNs resolve via Technitium.")
+	rc.Log("All built-in labprovider service FQDNs resolve via Technitium.")
 	rc.Log("dns-sync is running. Reconcile interval: %s.", env["DNS_SYNC_INTERVAL"])
 	return nil
 }
@@ -193,13 +193,13 @@ func applyDNSSeedToNetbox(ctx context.Context, rc *RunCtx) error {
 		"--network", "host",
 		"--add-host", urlHost(env["DNS_SYNC_NETBOX_URL"])+":127.0.0.1",
 		"-e", "NETBOX_URL="+env["DNS_SYNC_NETBOX_URL"],
-		"-e", "NETBOX_TOKEN_FILE=/run/provider-box/secrets/netbox.token",
-		"-e", "NETBOX_CA_BUNDLE=/etc/provider-box/certs/root_ca.crt",
-		"-v", env["DNS_SYNC_SECRETS_DIR"]+":/run/provider-box/secrets:ro",
-		"-v", filepath.Join(env["CA_DATA_DIR"], "certs", "root_ca.crt")+":/etc/provider-box/certs/root_ca.crt:ro",
-		"-v", seedFile+":/etc/provider-box/dns.seed:ro",
+		"-e", "NETBOX_TOKEN_FILE=/run/labprovider/secrets/netbox.token",
+		"-e", "NETBOX_CA_BUNDLE=/etc/labprovider/certs/root_ca.crt",
+		"-v", env["DNS_SYNC_SECRETS_DIR"]+":/run/labprovider/secrets:ro",
+		"-v", filepath.Join(env["CA_DATA_DIR"], "certs", "root_ca.crt")+":/etc/labprovider/certs/root_ca.crt:ro",
+		"-v", seedFile+":/etc/labprovider/dns.seed:ro",
 		env["DNS_SYNC_IMAGE"],
-		"dns-seed", "netbox-import", "/etc/provider-box/dns.seed",
+		"dns-seed", "netbox-import", "/etc/labprovider/dns.seed",
 	)
 }
 
@@ -207,7 +207,7 @@ func applyDNSSeedToNetbox(ctx context.Context, rc *RunCtx) error {
 // desired record set on every reconcile.
 func builtinRecordsValue(env map[string]string) (string, error) {
 	fqdns := builtinServiceFQDNs(env)
-	all := append([]string{env["PROVIDER_BOX_FQDN"]}, fqdns...)
+	all := append([]string{env["LABPROVIDER_FQDN"]}, fqdns...)
 	var parts []string
 	for _, fqdn := range all {
 		if fqdn != "" {

@@ -28,7 +28,7 @@ type Technitium struct{}
 func (Technitium) Name() string   { return "technitium" }
 func (Technitium) Deps() []string { return []string{"ca"} }
 
-const technitiumResolvMarker = "Managed by Provider Box (technitium deploy)"
+const technitiumResolvMarker = "Managed by labprovider (technitium deploy)"
 
 func (t Technitium) Deploy(ctx context.Context, rc *RunCtx) error {
 	env := rc.Env
@@ -121,7 +121,7 @@ func (t Technitium) Deploy(ctx context.Context, rc *RunCtx) error {
 		"token":                           {adminToken},
 		"webServiceEnableTls":             {"true"},
 		"webServiceTlsPort":               {"53443"},
-		"webServiceTlsCertificatePath":    {"/etc/provider-box/technitium-certs/technitium.pfx"},
+		"webServiceTlsCertificatePath":    {"/etc/labprovider/technitium-certs/technitium.pfx"},
 		"webServiceTlsCertificatePassword": {string(pfxPassword)},
 	}); err != nil {
 		return fmt.Errorf("enable Technitium web service TLS: %w", err)
@@ -307,12 +307,12 @@ func parsePrivateKey(pemBytes []byte) (any, error) {
 func preflightPort53(rc *RunCtx) error {
 	l, err := net.Listen("tcp", ":53")
 	if err != nil {
-		return fmt.Errorf("port 53/tcp is already in use and Provider Box will not stop the holder automatically (a leftover unbound or dnsmasq? if systemd-resolved holds it, re-run install.sh): %w", err)
+		return fmt.Errorf("port 53/tcp is already in use and labprovider will not stop the holder automatically (a leftover unbound or dnsmasq? if systemd-resolved holds it, re-run install.sh): %w", err)
 	}
 	l.Close()
 	u, err := net.ListenPacket("udp", ":53")
 	if err != nil {
-		return fmt.Errorf("port 53/udp is already in use and Provider Box will not stop the holder automatically: %w", err)
+		return fmt.Errorf("port 53/udp is already in use and labprovider will not stop the holder automatically: %w", err)
 	}
 	u.Close()
 	return nil
@@ -393,7 +393,7 @@ func provisionTechnitiumDNSSyncToken(ctx context.Context, rc *RunCtx, api techni
 		}
 		rc.Log("Stored Technitium API token is no longer valid; creating a replacement.")
 	}
-	token, err := api.CreateUserToken(ctx, "admin", rc.Env["TECHNITIUM_ADMIN_PASSWORD"], "provider-box-dns-sync")
+	token, err := api.CreateUserToken(ctx, "admin", rc.Env["TECHNITIUM_ADMIN_PASSWORD"], "labprovider-dns-sync")
 	if err != nil {
 		return fmt.Errorf("create the dns-sync Technitium token: %w", err)
 	}
@@ -429,7 +429,7 @@ func provisionTechnitiumDashboardToken(ctx context.Context, rc *RunCtx, api tech
 			return err
 		}
 		pass := base64.StdEncoding.EncodeToString(raw) + "Aa1!"
-		if err := api.CreateUser(ctx, adminToken, "dashboard", "Provider Box Dashboard", pass); err != nil {
+		if err := api.CreateUser(ctx, adminToken, "dashboard", "labprovider Dashboard", pass); err != nil {
 			return fmt.Errorf("create the Technitium dashboard user: %w", err)
 		}
 	}
@@ -470,7 +470,7 @@ func provisionTechnitiumDashboardToken(ctx context.Context, rc *RunCtx, api tech
 		}
 		rc.Log("Stored dashboard Technitium token is no longer valid; creating a replacement.")
 	}
-	token, err := api.CreateToken(ctx, adminToken, "dashboard", "provider-box-dashboard")
+	token, err := api.CreateToken(ctx, adminToken, "dashboard", "labprovider-dashboard")
 	if err != nil {
 		return fmt.Errorf("create the dashboard Technitium token: %w", err)
 	}

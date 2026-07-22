@@ -31,7 +31,7 @@ Reference for how the dashboard's certificate reader reads issued/revoked certif
 - **step-ca**: v0.30.2
 - **smallstep/nosql**: v0.8.0 (the Badger v2 codepath)
 
-Re-verify against source on any step-ca minor bump. The facts below were read from `smallstep/nosql` and step-ca source, **not** confirmed against a live CA dir from the build environment — run the live check in the last section when you have access to `/opt/provider-box/step-ca/db`.
+Re-verify against source on any step-ca minor bump. The facts below were read from `smallstep/nosql` and step-ca source, **not** confirmed against a live CA dir from the build environment — run the live check in the last section when you have access to `/opt/labprovider/step-ca/db`.
 
 ---
 
@@ -120,7 +120,7 @@ Order of suspicion:
 
 1. **Wrong backend.** Some step-ca configs use Badger **v1**, or a **SQL** backend (MySQL/Postgres), not Badger v2. This entire document only applies to the v2 Badger codepath. Check what's actually on disk:
    ```
-   ls /opt/provider-box/step-ca/db/
+   ls /opt/labprovider/step-ca/db/
    ```
    Badger v2 shows `*.sst`, `*.vlog`, `MANIFEST`, `KEYREGISTRY`, `LOCK`. If it looks like a SQL DSN config instead, the reader needs a different `Source` implementation.
 2. **Key encoding regressed** — re-confirm `toBadgerKey` in the pinned smallstep/nosql version.
@@ -136,7 +136,7 @@ Run against the real CA dir when available:
 STEPCA_API_TOKEN_FILE=/path/to/token \
 go run ./cmd/stepca-api \
   -db /tmp/stepca-api.db \
-  -ca-db /opt/provider-box/step-ca/db \
+  -ca-db /opt/labprovider/step-ca/db \
   -addr :8443 \
   -reconcile-interval 10s
 

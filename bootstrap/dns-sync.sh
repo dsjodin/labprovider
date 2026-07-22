@@ -9,11 +9,11 @@ require_dns_sync_vars() {
   local var
   for var in WORKDIR REPO_ROOT DNS_SYNC_IMAGE DNS_SYNC_DIR DNS_SYNC_SECRETS_DIR \
              DNS_SYNC_NETBOX_URL DNS_SYNC_TECHNITIUM_URL DNS_SYNC_INTERVAL \
-             PROVIDER_BOX_FQDN CA_DATA_DIR; do
+             LABPROVIDER_FQDN CA_DATA_DIR; do
     [[ -n "${!var:-}" ]] || fail "Missing required variable: $var"
   done
 
-  validate_var_fqdn "${PROVIDER_BOX_FQDN}"
+  validate_var_fqdn "${LABPROVIDER_FQDN}"
 
   validate_var_path "${WORKDIR}"
   validate_var_path "${DNS_SYNC_DIR}"
@@ -133,28 +133,28 @@ apply_dns_seed_to_netbox() {
     --user 1000:1000 \
     --add-host "$(dns_sync_url_host "${DNS_SYNC_NETBOX_URL}"):127.0.0.1" \
     -e NETBOX_URL="${DNS_SYNC_NETBOX_URL}" \
-    -e NETBOX_TOKEN_FILE="/run/provider-box/secrets/netbox.token" \
-    -e NETBOX_CA_BUNDLE="/etc/provider-box/certs/root_ca.crt" \
-    -v "${DNS_SYNC_SECRETS_DIR}:/run/provider-box/secrets:ro" \
-    -v "${CA_DATA_DIR}/certs/root_ca.crt:/etc/provider-box/certs/root_ca.crt:ro" \
-    -v "${seed_file}:/etc/provider-box/dns.seed:ro" \
+    -e NETBOX_TOKEN_FILE="/run/labprovider/secrets/netbox.token" \
+    -e NETBOX_CA_BUNDLE="/etc/labprovider/certs/root_ca.crt" \
+    -v "${DNS_SYNC_SECRETS_DIR}:/run/labprovider/secrets:ro" \
+    -v "${CA_DATA_DIR}/certs/root_ca.crt:/etc/labprovider/certs/root_ca.crt:ro" \
+    -v "${seed_file}:/etc/labprovider/dns.seed:ro" \
     --network host \
     "${DNS_SYNC_IMAGE}" \
-    dns-seed netbox-import /etc/provider-box/dns.seed || \
+    dns-seed netbox-import /etc/labprovider/dns.seed || \
     fail "Failed to import dns.seed into NetBox"
 }
 
-# Built-in Provider Box service FQDNs cannot live in NetBox as separate IP
+# Built-in labprovider service FQDNs cannot live in NetBox as separate IP
 # objects (NetBox enforces global IP uniqueness; the canonical host IP is one
-# object with PROVIDER_BOX_FQDN as dns_name), so dns-sync synthesizes their A
+# object with LABPROVIDER_FQDN as dns_name), so dns-sync synthesizes their A
 # records from the environment on every reconcile pass, via
-# provider_box_builtin_fqdns.
+# labprovider_builtin_fqdns.
 build_dns_sync_builtin_records() {
   local fqdn records=""
   while IFS= read -r fqdn; do
     records="${records:+${records},}${fqdn}=${HOST_IPV4}"
-  done < <(provider_box_builtin_fqdns)
-  [[ -n "${records}" ]] || fail "No built-in service FQDNs are set; check the *_FQDN variables in provider-box.env."
+  done < <(labprovider_builtin_fqdns)
+  [[ -n "${records}" ]] || fail "No built-in service FQDNs are set; check the *_FQDN variables in labprovider.env."
   DNS_SYNC_BUILTIN_RECORDS="${records}"
   export DNS_SYNC_BUILTIN_RECORDS
 }
@@ -186,20 +186,20 @@ verify_dns_sync_running() {
 verify_dns_sync_zone() {
   local attempt
   require_command dig
-  echo "Verifying dns-sync populated the lab zone (dig @127.0.0.1 ${PROVIDER_BOX_FQDN})."
+  echo "Verifying dns-sync populated the lab zone (dig @127.0.0.1 ${LABPROVIDER_FQDN})."
   for attempt in $(seq 1 45); do
-    if [[ -n "$(dig +short +time=2 +tries=1 @127.0.0.1 -p 53 "${PROVIDER_BOX_FQDN}" A 2>/dev/null)" ]]; then
-      echo "dns-sync populated the zone: ${PROVIDER_BOX_FQDN} resolves via Technitium."
+    if [[ -n "$(dig +short +time=2 +tries=1 @127.0.0.1 -p 53 "${LABPROVIDER_FQDN}" A 2>/dev/null)" ]]; then
+      echo "dns-sync populated the zone: ${LABPROVIDER_FQDN} resolves via Technitium."
       verify_dns_sync_builtin_records
       return 0
     fi
     sleep 2
   done
-  fail "dns-sync did not populate the lab zone: no A record for ${PROVIDER_BOX_FQDN} via 127.0.0.1. Check 'docker compose logs' under ${WORKDIR}/dns-sync and confirm NetBox holds the canonical host IP (run --netbox)."
+  fail "dns-sync did not populate the lab zone: no A record for ${LABPROVIDER_FQDN} via 127.0.0.1. Check 'docker compose logs' under ${WORKDIR}/dns-sync and confirm NetBox holds the canonical host IP (run --netbox)."
 }
 
 # The built-ins land in the same reconcile pass as the canonical host record,
-# so once PROVIDER_BOX_FQDN resolves the rest should follow immediately.
+# so once LABPROVIDER_FQDN resolves the rest should follow immediately.
 verify_dns_sync_builtin_records() {
   local fqdn attempt resolved
   while IFS= read -r fqdn; do
@@ -213,8 +213,8 @@ verify_dns_sync_builtin_records() {
     done
     [[ -n "${resolved}" ]] || \
       fail "Built-in service record ${fqdn} does not resolve via Technitium. Check 'docker compose logs' under ${WORKDIR}/dns-sync."
-  done < <(provider_box_builtin_fqdns)
-  echo "All built-in Provider Box service FQDNs resolve via Technitium."
+  done < <(labprovider_builtin_fqdns)
+  echo "All built-in labprovider service FQDNs resolve via Technitium."
 }
 
 do_dns_sync() {
