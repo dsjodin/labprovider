@@ -66,7 +66,7 @@ The original bash bootstrap (`bootstrap/provider-box.sh` plus per-service module
 ## Overview
 
 ![Provider Box Overview](docs/images/provider-box-overview.png)
-*Provider Box architecture showing host-based services, containerized services, and external dependencies.*
+*Provider Box v2 architecture: the control plane, the containerized Docker Compose services, the host foundation, and external dependencies.*
 
 ## Table of Contents
 
