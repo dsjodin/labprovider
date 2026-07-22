@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -36,7 +37,20 @@ func New(baseURL, token, caBundle string, timeout time.Duration) (*Client, error
 	if token == "" {
 		return nil, errors.New("technitium token is required")
 	}
-	tr := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	// Single-node pin: dial 127.0.0.1 regardless of DNS state (the lab FQDN
+	// may not resolve inside the container), keeping the URL hostname for TLS
+	// SAN verification - the same idiom as the deployers' pinned probes.
+	dialer := &net.Dialer{Timeout: 3 * time.Second}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			_, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			return dialer.DialContext(ctx, network, net.JoinHostPort("127.0.0.1", port))
+		},
+	}
 	if caBundle != "" {
 		pem, err := os.ReadFile(caBundle)
 		if err != nil {

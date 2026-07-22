@@ -76,6 +76,21 @@ func main() {
 	// the server stays a read-only dashboard.
 	if _, err := os.Stat(cfg.ExamplePath); err == nil {
 		store := envfile.Store{Path: cfg.ConfigPath, ExamplePath: cfg.ExamplePath}
+
+		// Engine-enabled deployments resolve the panel upstreams from the
+		// managed config at page-load time; explicit CONTROL_PLANE_* env vars
+		// (the legacy compose wiring) win when set above.
+		src := lazySource{store: store, timeout: cfg.UpstreamTimeout}
+		if opt.Certs == nil {
+			opt.Certs = lazyCerts{src}
+		}
+		if opt.DNS == nil {
+			opt.DNS = lazyDNS{src}
+		}
+		if opt.IPAM == nil {
+			opt.IPAM = lazyIPAM{src}
+		}
+
 		engine := deploy.NewEngine(store, &deploy.StateStore{Path: cfg.StatePath}, logger)
 		// Registration order is the --all deploy order: no-dependency services
 		// first, then the CA, then certificate consumers as they are ported.
