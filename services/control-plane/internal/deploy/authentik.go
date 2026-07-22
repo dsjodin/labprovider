@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -257,17 +258,26 @@ func (a authentikAPI) waitStatus(ctx context.Context, url, token string, want []
 	return fmt.Errorf("%s did not become ready (last HTTP status %d)", url, last)
 }
 
-// firstResult decodes {"results":[{...}]} and returns the given string field
-// of the first result.
+// firstResult returns the given string field from a {"results":[{...}]}
+// response, scanning every result. When the structured shape does not match,
+// it falls back to a flat "field":"value" search over the raw body - the
+// same tolerance the bash module's sed extraction had.
 func firstResult(body []byte, field string) string {
 	var out struct {
 		Results []map[string]any `json:"results"`
 	}
-	if err := json.Unmarshal(body, &out); err != nil || len(out.Results) == 0 {
-		return ""
+	if err := json.Unmarshal(body, &out); err == nil {
+		for _, r := range out.Results {
+			if v, ok := r[field].(string); ok && v != "" {
+				return v
+			}
+		}
 	}
-	v, _ := out.Results[0][field].(string)
-	return v
+	m := regexp.MustCompile(`"` + regexp.QuoteMeta(field) + `":"([^"]*)"`).FindSubmatch(body)
+	if m != nil {
+		return string(m[1])
+	}
+	return ""
 }
 
 // configureAuthentikBrandCertificate waits for certificate discovery to see
@@ -310,13 +320,13 @@ func configureAuthentikBrandCertificate(ctx context.Context, rc *RunCtx, api aut
 		return fmt.Errorf("re-apply the Authentik bootstrap blueprint: HTTP %d, %v", status, err)
 	}
 
-	_, body, err = api.do(ctx, http.MethodGet, api.base()+"/api/v3/core/brands/", nil)
+	status, body, err = api.do(ctx, http.MethodGet, api.base()+"/api/v3/core/brands/", nil)
 	if err != nil {
 		return err
 	}
 	brandUUID := firstResult(body, "brand_uuid")
 	if brandUUID == "" {
-		return fmt.Errorf("failed to determine the default Authentik brand")
+		return fmt.Errorf("failed to determine the default Authentik brand (GET /api/v3/core/brands/ returned HTTP %d: %.300s)", status, body)
 	}
 	payload, _ := json.Marshal(map[string]string{"web_certificate": keypairPK})
 	status, _, err = api.do(ctx, http.MethodPatch, api.base()+"/api/v3/core/brands/"+brandUUID+"/", payload)
