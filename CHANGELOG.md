@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-22 (control plane deploys Zitadel as a third IdP)
+
+### Features
+- Added Zitadel as an identity-provider option in the control-plane deploy engine, alongside Keycloak and Authentik. Registering `deploy.Zitadel{}` surfaces it automatically in the `/deploy` UI and in "Select all" (dependency order now: chrony, rsyslog, ca, technitium, depot, keycloak, authentik, zitadel, netbox, s3, sftp, dns-sync). Scope is the Go control plane only; the legacy `bootstrap/*.sh` path is unchanged.
+  - **zitadel**: Postgres backend plus the Zitadel server, which serves the step-ca-issued certificate directly (no self-signed bootstrap window). `ZITADEL_MASTERKEY` must be exactly 32 characters. Zitadel's FirstInstance init mints a machine service account whose PAT is written to `WORKDIR/zitadel/machinekey/pat.txt`; the deployer reads it and drives the Management API to create the bootstrap project, an OIDC application with the configured redirect URIs, a project role, and a lab user granted that role (idempotent on re-runs). Because Zitadel generates the OIDC client id/secret on creation, the real issuer/client id/secret are written to `${ZITADEL_DIR}/certs/<ZITADEL_FQDN>/zitadel-oidc-client.txt` for the VCF SSO configuration.
+- New files: `services/control-plane/internal/deploy/zitadel.go`, `.../templates/docker-compose.zitadel.yml.tpl`, and the render-parity golden. Wired into the schema validation table, the dashboard container filter, and the NetBox service/FQDN seeding; `config/labprovider.env.example` gains the `ZITADEL_*` block.
+
+---
+
 ## 2026-07-11 (v2 documentation: control plane is the primary path)
 
 ### Fixes

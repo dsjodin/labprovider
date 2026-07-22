@@ -114,6 +114,18 @@ var testEnv = map[string]string{
 	"AUTHENTIK_BOOTSTRAP_CLIENT_SECRET":  "akclient",
 	"AUTHENTIK_BOOTSTRAP_CLIENT_REDIRECT_URIS_BLOCK": "        - matching_mode: strict\n          url: \"https://vc.sddc.lab/oauth2\"",
 
+	"ZITADEL_IMAGE":                    "ghcr.io/zitadel/zitadel:v2.71.0",
+	"ZITADEL_POSTGRES_IMAGE":           "docker.io/library/postgres:16-alpine",
+	"ZITADEL_DIR":                      "/opt/labprovider/zitadel",
+	"ZITADEL_FQDN":                     "zid.sddc.lab",
+	"ZITADEL_PORT":                     "7443",
+	"ZITADEL_MASTERKEY":                "0123456789abcdef0123456789abcdef",
+	"ZITADEL_ADMIN_USERNAME":           "zitadel-admin",
+	"ZITADEL_ADMIN_PASSWORD":           "zidadmin",
+	"ZITADEL_PG_DB":                    "zitadel",
+	"ZITADEL_PG_USER":                  "zitadel",
+	"ZITADEL_PG_PASSWORD":              "zidpg",
+
 	"SFTPGO_IMAGE":        "docker.io/drakkan/sftpgo:v2.7.3",
 	"SFTP_FQDN":           "sftp.sddc.lab",
 	"SFTP_PORT":           "2022",
@@ -146,6 +158,7 @@ func TestRenderGolden(t *testing.T) {
 		"docker-compose.keycloak.yml.tpl",
 		"docker-compose.authentik.yml.tpl",
 		"authentik-blueprint.yaml.tpl",
+		"docker-compose.zitadel.yml.tpl",
 		"docker-compose.sftpgo.yml.tpl",
 	} {
 		t.Run(name, func(t *testing.T) {

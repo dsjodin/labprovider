@@ -1,0 +1,52 @@
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "zitadel"
+      POSTGRES_USER: "zitadel"
+      POSTGRES_PASSWORD: "zidpg"
+    volumes:
+      - /opt/labprovider/zitadel/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zitadel -d zitadel"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v2.71.0
+    restart: unless-stopped
+    command: start-from-init --masterkeyFromEnv --tlsMode enabled
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ZITADEL_MASTERKEY: "0123456789abcdef0123456789abcdef"
+      ZITADEL_TLS_ENABLED: "true"
+      ZITADEL_TLS_CERTPATH: /certs/zitadel.crt
+      ZITADEL_TLS_KEYPATH: /certs/zitadel.key
+      ZITADEL_EXTERNALDOMAIN: "zid.sddc.lab"
+      ZITADEL_EXTERNALPORT: "7443"
+      ZITADEL_EXTERNALSECURE: "true"
+      ZITADEL_DATABASE_POSTGRES_HOST: db
+      ZITADEL_DATABASE_POSTGRES_PORT: "5432"
+      ZITADEL_DATABASE_POSTGRES_DATABASE: "zitadel"
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: "zitadel"
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: "zidpg"
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: "zitadel"
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: "zidpg"
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: "zitadel-admin"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "zidadmin"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: labprovider-admin-sa
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: labprovider-admin-sa
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
+      ZITADEL_FIRSTINSTANCE_PATPATH: /machinekey/pat.txt
+    ports:
+      - "7443:8080"
+    volumes:
+      - /opt/labprovider/zitadel/certs/zid.sddc.lab:/certs:ro
+      - /opt/labprovider/runtime/zitadel/machinekey:/machinekey
