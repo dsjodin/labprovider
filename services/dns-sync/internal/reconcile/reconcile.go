@@ -107,10 +107,19 @@ func Diff(desired, current []model.Record, currentZones []string) []model.Op {
 
 	desiredSet := keySet(desired)
 	currentSet := keySet(current)
+	// The desired slice can contain duplicates (PROVIDER_BOX_FQDN comes from
+	// both NetBox's canonical host IP and the built-in record list). Emit one
+	// create per key, or the second create fails "record already exists" and
+	// aborts the pass on a fresh zone.
+	created := map[string]struct{}{}
 	for _, r := range desired {
 		if _, ok := currentSet[r.Key()]; ok {
 			continue
 		}
+		if _, ok := created[r.Key()]; ok {
+			continue
+		}
+		created[r.Key()] = struct{}{}
 		ops = append(ops, model.Op{Kind: model.OpCreate, Zone: r.Zone, Record: r})
 	}
 	for _, r := range current {

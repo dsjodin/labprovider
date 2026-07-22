@@ -124,8 +124,10 @@ func (d DNSSync) Deploy(ctx context.Context, rc *RunCtx) error {
 		tailDNSSyncLogs(ctx, rc, cmp)
 		return fmt.Errorf("dns-sync did not populate the lab zone (see the log tail above; is the canonical host IP in NetBox?): %w", err)
 	}
+	// The window spans at least two reconcile intervals so a retried first
+	// pass still converges within it.
 	for _, fqdn := range builtinServiceFQDNs(env) {
-		if err := waitRecordResolves(ctx, fqdn, 15, 2*time.Second); err != nil {
+		if err := waitRecordResolves(ctx, fqdn, 45, 2*time.Second); err != nil {
 			tailDNSSyncLogs(ctx, rc, cmp)
 			return fmt.Errorf("built-in service record %s does not resolve via Technitium (see the log tail above): %w", fqdn, err)
 		}
