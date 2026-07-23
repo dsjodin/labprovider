@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -23,6 +24,12 @@ func SignCSR(ctx context.Context, env map[string]string, csrPEM []byte) ([]byte,
 		return nil, fmt.Errorf("input is not a PEM-encoded certificate signing request")
 	}
 	if _, err := x509.ParseCertificateRequest(block.Bytes); err != nil {
+		if csrMissingAttributes(block.Bytes) {
+			return nil, fmt.Errorf("certificate signing request omits the mandatory PKCS#10 attributes field; " +
+				"it was produced by a non-compliant generator that OpenSSL tolerates but step-ca rejects. " +
+				"The self-signature covers the request as-is, so it cannot be repaired without the private key. " +
+				"Regenerate the CSR with a standard tool, for example: openssl req -new -key key.pem -out request.csr")
+		}
 		return nil, fmt.Errorf("invalid certificate signing request: %w", err)
 	}
 
@@ -90,4 +97,29 @@ func SignCSR(ctx context.Context, env map[string]string, csrPEM []byte) ([]byte,
 		crt = append(crt, intermediate...)
 	}
 	return crt, nil
+}
+
+// csrMissingAttributes reports whether a CSR that x509.ParseCertificateRequest
+// rejected does so only because it lacks the mandatory attributes [0] field.
+// PKCS#10 requires that field (empty is fine); some generators omit it. OpenSSL
+// accepts such a request, but Go's parser tags attributes as required and fails
+// with "asn1: syntax error: sequence truncated". A lenient re-parse that marks
+// attributes optional isolates that case.
+func csrMissingAttributes(der []byte) bool {
+	var cr struct {
+		Raw asn1.RawContent
+		TBS struct {
+			Raw        asn1.RawContent
+			Version    int
+			Subject    asn1.RawValue
+			PublicKey  asn1.RawValue
+			Attributes asn1.RawValue `asn1:"tag:0,optional"`
+		}
+		SignatureAlgorithm asn1.RawValue
+		Signature          asn1.BitString
+	}
+	if _, err := asn1.Unmarshal(der, &cr); err != nil {
+		return false
+	}
+	return len(cr.TBS.Attributes.FullBytes) == 0
 }
