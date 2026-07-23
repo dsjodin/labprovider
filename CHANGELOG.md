@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-07-23 (remove the legacy bash bootstrap; documentation to v2)
+
+### Removed
+- Deleted the legacy CLI deployment path: the `bootstrap/` directory (`labprovider.sh` and every per-service `*.sh` module) and the `templates/` envsubst templates. These were labprovider v1; the Go control plane (`install.sh` + `services/control-plane`) has been the sole deployment surface since the v2 cutover, and the bash path is now removed rather than kept as transitional. The control plane's embedded Go templates (`internal/deploy/templates/`) are unaffected.
+
+### Changes
+- Reworked the documentation to the v2 control-plane path throughout. `README.md` drops the bash Quick Start, the "Transitional: the bash bootstrap" section, the `--flag` module reference, and the CLI-based runtime/removal/upgrade instructions; it now documents the `/config` -> `/deploy` -> `/` flow, a service reference keyed on service names, containerized chrony/rsyslog (images built locally), Zitadel, and the CSR/MSCA surfaces. `services/control-plane/README.md` is reframed as the control plane itself (was described as a `--dashboard` bootstrap module). `AGENTS.md` and `PROJECT_CONTEXT.md` drop the "transitional bootstrap" language and add Zitadel + CSR/MSCA to the component lists.
+- Added as-built/historical banners to the design docs whose mechanism was superseded (`technitium-dns_design.md`, `STEPCA_POSTGRES_MIGRATION_PLAN.md`) and fixed stale `services/dashboard` -> `services/control-plane` paths in `STEPCA_STORAGE.md` and `step-ca_api_design.md`. `IMPROVEMENTS.md` gains a note marking the `bootstrap/*.sh`-scoped findings obsolete (code deleted); #6 still applies to the live dns-sync Go code. `CHANGELOG.md` history is unchanged (its dated entries reference the bash path as it existed at the time).
+
+---
+
 ## 2026-07-23 (Microsoft-CA web-enrollment emulator for VCF)
 
 ### Features

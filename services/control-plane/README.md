@@ -1,26 +1,27 @@
-# labprovider Dashboard
+# labprovider control plane
 
-A **read-only** "current state" view of the labprovider services. It queries
-each service's API on request and renders the result. There is no persistent
-store, no history, and no writes to any upstream.
+The control plane is the primary way to run labprovider (v2). It is a single Go
+binary in a container that serves the web UI:
 
-Two supported ways to run it:
+- **`/config`** - the configuration wizard (edit/paste/validate/save
+  `labprovider.env` and the optional `dns.seed`).
+- **`/deploy`** - service selection and deployment with live progress over SSE.
+- **`/`** - a **read-only** "current state" dashboard.
+- **`/csr`** - paste a PKCS#10 CSR and have step-ca sign it.
+- An optional Microsoft-CA web-enrollment emulator (`certsrv`) on a second
+  listener, for VCF automated certificate replacement.
 
-- **Bootstrap module (recommended):** `sudo bash bootstrap/labprovider.sh
-  --dashboard`. Also deployed by `--all` (last). This issues the cert, brings up
-  the stack, verifies HTTPS, and publishes `CONTROL_PLANE_FQDN` via DNS. See
-  "Bootstrap module" below.
-- **Standalone / manual:** `services/control-plane/scripts/run.sh`, unchanged, for
-  running the service on its own without the bootstrap flow. See "Running it
-  manually" below.
+`install.sh` at the repo root builds this image from the checkout and runs it
+(root, host network, docker socket + `/opt/labprovider` + `/host/etc` mounted);
+everything else happens in the browser. See the top-level `README.md` for the
+install flow and the service catalog.
 
-This service absorbs the intent of the former design-stage `services/stepca-api`
-(the "list issued certificates" panel); that directory has been removed and its
-reusable step-ca reader lives here as `internal/certs`, now reading step-ca's
-PostgreSQL backend (the BadgerDB reader was retired when step-ca moved to
-postgres).
+The dashboard queries each service's API on request and renders the result.
+There is no persistent store, no history, and no writes to any upstream. The
+step-ca reader lives in `internal/certs`, reading step-ca's PostgreSQL backend
+(the BadgerDB reader was retired when step-ca moved to postgres).
 
-## What it shows
+## What the dashboard shows
 
 Five panels. Each degrades independently: if its source is down or not
 configured it renders "unavailable" / "not configured" and never blanks the
@@ -32,7 +33,7 @@ page or fails the request.
    `SELECT`-only role, decoding the opaque cert blobs (see `STEPCA_STORAGE.md`).
 2. **DNS (Technitium)** - zone list, managed record count per zone, the
    forwarder in use, and whether the TLS console/API (`:53443`) is reachable.
-   Uses the same API shapes as `dns-sync` and the technitium module.
+   Uses the same API shapes as `dns-sync` and the technitium deployer.
 3. **IPAM (NetBox)** - prefix and IP-address counts and the `dns_name`
    inventory. Read with a dedicated, minimum-read-scope token.
 4. **Services (Docker)** - container name, state, health, uptime and image tag
@@ -46,117 +47,46 @@ page or fails the request.
 
 ## Security posture
 
-- **Read-only throughout.** No upstream write path exists in the code.
-  - NetBox: use a **dedicated** token with the minimum read scope
+- **Read-only throughout.** No upstream write path exists in the dashboard code.
+  - NetBox: a **dedicated** token with the minimum read scope
     (`ipam.view_prefix`, `ipam.view_ipaddress`; a fine-grained read-only token
     on NetBox versions that support it). Do **not** reuse the `dns-sync` or
-    bootstrap admin token.
-  - Technitium: a scoped API token (the API has no per-scope tokens, so create a
-    non-admin user's token where possible; it is only ever used for
-    `zones/list`, `zones/records/get`, and `settings/get`).
+    seeding admin token. Auto-provisioned by the netbox deploy.
+  - Technitium: a scoped API token (the API has no per-scope tokens, so a
+    non-admin user's token is created; it is only ever used for `zones/list`,
+    `zones/records/get`, and `settings/get`). Auto-provisioned by the technitium
+    deploy.
   - step-ca: the postgres backend is read through a `SELECT`-only role on the
     cert tables; there is no signing path and no write path.
   - Docker socket is mounted `:ro`.
-- **Tokens come from files/env, never hardcoded, never logged.** The compose
-  file mounts them from `CONTROL_PLANE_SECRETS_DIR` read-only.
-- **The dashboard serves HTTPS** with a step-ca-issued cert for its FQDN. If no
-  cert is configured it falls back to plaintext HTTP with a logged warning
-  (lab only).
+- **Tokens come from files/env, never hardcoded, never logged.** They are read
+  from `CONTROL_PLANE_SECRETS_DIR`. Operator-placed (SOPS/age) tokens win over
+  auto-provisioning.
+- **The control plane serves HTTPS** with a step-ca-issued cert for its FQDN
+  once the CA is deployed (restart the container to pick it up). Before that it
+  falls back to plaintext HTTP with a logged warning (lab only).
 - **No auth on the UI itself (v1).** This is acceptable only on a trusted,
-  internal lab network. **TODO before any non-lab use: put the dashboard behind
-  authentication** (e.g. the Authentik/Keycloak already in this repo, or a
-  reverse proxy with auth). Until then, do not expose it beyond the lab.
+  internal lab network. **TODO before any non-lab use: put the control plane
+  behind authentication** (e.g. the Authentik/Keycloak/Zitadel already in this
+  repo, or a reverse proxy with auth). Until then, do not expose it beyond the
+  lab.
 
-## Bootstrap module
+Note the CSR-signing surfaces (`/csr`, `/api/csr/sign`, and the MSCA emulator)
+are write paths onto step-ca and are gated only by the emulator's Basic Auth
+(`VMSCA_*`) for the certsrv listener; the `/csr` page shares the UI's lack of
+auth. Keep the whole control plane on a trusted network.
 
-`bootstrap/dashboard.sh` (flag `--dashboard`) wires this service into
-`labprovider.sh`. It does not rewrite the service - cert issuance and startup
-reuse `scripts/issue-cert.sh` and `scripts/run.sh`, the same code the
-manual path uses. The module follows the standard five-step flow:
+## The read-only tokens
 
-1. **Validate** the `CONTROL_PLANE_*` variables and the CA variables (fail fast on
-   an empty or malformed value).
-2. **Create** `CONTROL_PLANE_CERT_DIR` and `CONTROL_PLANE_SECRETS_DIR` owned by uid 1000
-   before anything writes to them.
-3. **Issue** the TLS cert from step-ca as a full chain (leaf + intermediate) via
-   `scripts/issue-cert.sh`.
-4. **Start** the compose stack via `scripts/run.sh` (resolves the host docker
-   gid, `--env-file labprovider.env`, `up -d --build`).
-5. **Verify** `https://${CONTROL_PLANE_FQDN}:${port}/healthz` returns 200 over the
-   step-ca chain (bounded poll, fail fast).
+Both the NetBox and Technitium dashboard panels are auto-provisioned by the
+producing deploys (netbox and technitium respectively), so a fresh deploy lights
+them up with no manual step. Without a token a panel renders "not configured".
+To place tokens yourself (they win while valid), create **dedicated, read-only**
+credentials - never reuse the dns-sync or seeding admin tokens - and write them
+into `CONTROL_PLANE_SECRETS_DIR` (mode 0600, owner uid 1000):
 
-```sh
-sudo bash bootstrap/labprovider.sh --ca
-sudo bash bootstrap/labprovider.sh --technitium
-sudo bash bootstrap/labprovider.sh --netbox
-sudo bash bootstrap/labprovider.sh --dns-sync
-sudo bash bootstrap/labprovider.sh --dashboard
-sudo bash bootstrap/labprovider.sh --dashboard --remove
-```
-
-**DNS:** `--dashboard` (via `labprovider_builtin_fqdns`) publishes
-`CONTROL_PLANE_FQDN -> HOST_IP`: `dns-sync` synthesizes the record on its next
-pass, so `dashboard.<domain>` resolves by name after `--dns-sync`.
-
-The scoped read-only tokens (below) are **optional** for the module - if absent,
-the NetBox and Technitium panels render "not configured", so `--dashboard` and
-`--all` stay green without them.
-
-`--dashboard --remove` brings the container down and preserves the cert and
-secrets directories, matching the other modules.
-
-## Running it manually
-
-The standalone path (`scripts/run.sh`) is unchanged and still supported for
-running the service without the bootstrap flow.
-
-Prerequisites: `--ca` deployed (for step-ca's postgres, the read-only role, and
-the root cert), and the services you want panels for (`--technitium`,
-`--netbox`, `--dns-sync`).
-
-1. **Add the dashboard variables to your config.** Copy the `CONTROL_PLANE_*` block
-   from `config/labprovider.env.example` into your `config/labprovider.env`
-   and adjust. (`scripts/run.sh` resolves `CONTROL_PLANE_DOCKER_GID` from the host
-   docker group automatically, so you can leave the example default.)
-
-2. **Issue the dashboard's TLS cert** from step-ca. This mirrors the technitium
-   module's cert-issuance docker run and writes `dashboard.crt` (leaf + chain)
-   and `dashboard.key` into `CONTROL_PLANE_CERT_DIR`, owned by uid 1000:
-
-   ```sh
-   services/control-plane/scripts/issue-cert.sh
-   ```
-
-   (Pass a path as the first argument to use a non-default env file.) HTTPS is
-   the default. If the cert is missing or unreadable at start, the server logs a
-   WARNING and falls back to plaintext HTTP rather than crash-looping - fine for
-   a lab, but issue the cert for real use.
-
-3. **Provide the scoped read-only tokens** in `CONTROL_PLANE_SECRETS_DIR`
-   (mode 0600, owner uid 1000). See "Creating the read-only tokens" below.
-   - `technitium.token` - a scoped Technitium API token.
-   - `netbox-readonly.token` - a dedicated NetBox read-only token.
-
-4. **Start it:**
-
-   ```sh
-   services/control-plane/scripts/run.sh
-   ```
-
-   This runs the documented compose command
-   (`docker compose --env-file ../../config/labprovider.env up -d --build`) with
-   `CONTROL_PLANE_DOCKER_GID` resolved from the host docker group. Then browse
-   `https://${CONTROL_PLANE_FQDN}:8445/` (the `CONTROL_PLANE_ADDR` port). To stop it:
-   `services/control-plane/scripts/run.sh -- down`.
-
-Any panel whose upstream URL/token/path is unset simply renders "not
-configured", so you can run with a subset of sources.
-
-### Creating the read-only tokens
-
-Both panels are optional; without a token they render "not configured". Create
-**dedicated, read-only** credentials - never reuse the dns-sync or bootstrap
-admin tokens.
+- `netbox-readonly.token` - a dedicated NetBox read-only token.
+- `technitium.token` - a scoped Technitium API token.
 
 **NetBox (`netbox-readonly.token`).** In the NetBox UI as an admin:
 
@@ -193,9 +123,10 @@ so create a **non-admin** user and use its token (the dashboard only calls
 
 ## Configuration
 
-All settings are environment variables (see the `CONTROL_PLANE_*` block in
-`config/labprovider.env.example` for the documented set). The binary also
-reads them directly, so it can run outside Docker for development:
+All settings are environment variables (see the `CONTROL_PLANE_*` and `VMSCA_*`
+blocks in `config/labprovider.env.example` for the documented set). The managed
+config is read from `/opt/labprovider/control-plane/labprovider.env`; the binary
+also reads the variables directly, so it can run outside Docker for development:
 
 ```sh
 CONTROL_PLANE_ADDR=:8445 \
@@ -203,21 +134,18 @@ CONTROL_PLANE_STEPCA_DSN='postgresql://dashboard_ro@127.0.0.1:5432/stepca?sslmod
 CONTROL_PLANE_STEPCA_PG_PASSWORD=... \
 CONTROL_PLANE_TECHNITIUM_URL=https://dns.sddc.lab:53443 \
 CONTROL_PLANE_TECHNITIUM_TOKEN=... \
-go run ./cmd/dashboard
+go run ./cmd/control-plane
 ```
 
-Without `CONTROL_PLANE_TLS_CERT`/`CONTROL_PLANE_TLS_KEY` it serves plaintext HTTP with a
-warning - fine for local development, not for the lab network.
+Without `CONTROL_PLANE_TLS_CERT`/`CONTROL_PLANE_TLS_KEY` it serves plaintext HTTP
+with a warning - fine for local development, not for the lab network.
 
 ## Phase 2 (explicitly out of scope for v1)
 
 - **History / collector.** v1 fetches on page load only; there is no background
   polling, time series, or store.
-- **UI authentication.** Front the dashboard with the repo's IdP or a
+- **UI authentication.** Front the control plane with the repo's IdP or a
   reverse-proxy auth layer before any non-lab exposure.
-
-(Bootstrap integration - the `--dashboard` module and `--all` inclusion - has
-landed; see "Bootstrap module" above.)
 
 ## Development
 
@@ -229,4 +157,5 @@ go test ./...
 
 Each upstream client has a table-driven parsing test over recorded sample
 payloads; the server has tests for per-panel isolation (source up, source down,
-not configured).
+not configured). Every deployer template has a golden render test
+(`UPDATE_GOLDEN=1 go test ./internal/deploy/ -run TestRenderGolden` regenerates).

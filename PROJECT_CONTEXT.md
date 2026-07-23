@@ -47,7 +47,7 @@ Everything is containerized:
 | Control plane | Go binary in a container (root, host network, docker socket + `/opt/labprovider` + `/host/etc` mounted) |
 | Host footprint | Docker plus two one-time systemd tweaks done by `install.sh` |
 
-No clustering or orchestration. The transitional bash bootstrap still deploys chrony/rsyslog natively; it is scheduled for removal.
+No clustering or orchestration. There is no CLI path: the legacy bash bootstrap was the v1 approach and has been removed. chrony and rsyslog run containerized (images built locally, since neither has an official upstream container).
 
 ---
 
@@ -70,8 +70,10 @@ No clustering or orchestration. The transitional bash bootstrap still deploys ch
 ### Security & Identity
 
 - step-ca (internal CA, dedicated PostgreSQL backend, CRL enabled)
+- CSR signing and a Microsoft-CA web-enrollment emulator (`certsrv`) in the control plane, so VCF can automate certificate replacement against step-ca via its "Microsoft CA" integration
 - Keycloak (OIDC identity provider; opinionated VCF realm import)
-- Authentik (OIDC + outbound SCIM 2.0 for VCF 9 identity federation; runs in parallel with Keycloak, federate against one)
+- Authentik (OIDC + outbound SCIM 2.0 for VCF 9 identity federation; runs in parallel with the other IdPs, federate against one)
+- Zitadel (OIDC identity provider, optional multi-tenant orgs; v4 core + Login V2 + PostgreSQL + nginx terminator)
 
 ### Source of Truth
 
@@ -88,7 +90,7 @@ No clustering or orchestration. The transitional bash bootstrap still deploys ch
 
 ### Control Plane
 
-- `services/control-plane`: config wizard, deploy engine with SSE progress, read-only dashboard (certificates, DNS, IPAM, containers, recent errors)
+- `services/control-plane`: config wizard, deploy engine with SSE progress, read-only dashboard (certificates, DNS, IPAM, containers, recent errors), CSR signing, and the optional MSCA emulator
 - No UI authentication in v1: trusted lab networks only
 
 ---

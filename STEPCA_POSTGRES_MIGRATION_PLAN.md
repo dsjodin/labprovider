@@ -1,5 +1,16 @@
 # step-ca PostgreSQL Migration + CA Admin Console - Phase 1 Plan
 
+> **Historical - implemented.** This was the Phase 1 investigation. Phase 2
+> shipped: step-ca now runs on a dedicated `stepca-postgres` backend with CRL
+> enabled, and the dashboard reads it through a `SELECT`-only role (recommended
+> Option B, clean rebuild + reissue). stepca-web was rejected. Note the plan
+> predates the v2 control plane, so its file references are stale: the work
+> described in `bootstrap/ca.sh` and `templates/docker-compose.step-ca.yml.tpl`
+> is now the Go `ca` deployer (`services/control-plane/internal/deploy/ca.go`)
+> and its embedded template; `services/dashboard/internal/certs` is now
+> `services/control-plane/internal/certs`. See `CHANGELOG.md` (2026-07-09) and
+> `STEPCA_STORAGE.md` for the as-built result. Kept for the decision record.
+
 Investigation and plan ONLY. No code changes, no CA rebuild in this phase.
 Approve this document before any Phase 2 work begins.
 

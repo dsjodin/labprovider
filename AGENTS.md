@@ -34,7 +34,7 @@ Agents must preserve:
 - The deploy engine (`internal/deploy`) is a static registry of services with explicit dependencies, executed sequentially in dependency order, single-flight, streaming progress over SSE.
 - Configuration is the single flat `labprovider.env`, managed at `/opt/labprovider/control-plane/labprovider.env` by the wizard; the shipped example (`config/labprovider.env.example`) is the schema source of truth and completeness reference. Validation lives in `internal/envfile/schema.go` - one table entry per variable with its validator and the services that require it.
 - Docker is the source of truth for what is running; `state.json` is advisory deploy history only.
-- The transitional bash bootstrap (`bootstrap/`, `templates/`) still exists until the control-plane path proves parity end-to-end; do not add features to it.
+- There is no CLI path: the legacy bash bootstrap (`bootstrap/`, `templates/`) was the v1 approach and has been removed. `install.sh` and the Go control plane are the only deployment surface.
 
 ---
 
@@ -139,7 +139,7 @@ Unless a dependency is explicit in the deployer's `Deps()`, services must remain
 - No silent error handling
 - No floating versions
 - No user-facing application platforms
-- No new features in the transitional bash bootstrap
+- No CLI / bash deployment path (the legacy `bootstrap/` was removed; do not reintroduce it)
 
 ---
 

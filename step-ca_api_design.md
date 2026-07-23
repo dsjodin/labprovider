@@ -2,10 +2,13 @@
 
 > **Historical.** This blueprint described a standalone certificate API service
 > (`services/stepca-api`, now removed). Its "list issued certificates" intent
-> now lives in `services/dashboard` as the read-only Certificates panel, which
-> reuses the step-ca BadgerDB reader documented in `STEPCA_STORAGE.md`. The
-> collector/API surface below (SQLite inventory, token-authed REST) is deferred
-> to the dashboard's phase 2. Kept as background, not an active spec.
+> now lives in the control plane (`services/control-plane`) as the read-only
+> Certificates panel, which reads step-ca's PostgreSQL backend as documented in
+> `STEPCA_STORAGE.md` (the BadgerDB reader this blueprint assumed was retired
+> when step-ca moved to postgres). The collector/API surface below (SQLite
+> inventory, token-authed REST) is deferred to the dashboard's phase 2, and the
+> `labprovider.sh --stepca-api` bootstrap stage in section 8 never shipped -
+> there is no bash CLI in v2. Kept as background, not an active spec.
 
 A thin management/API layer in front of step-ca for the labprovider fork. It exists to close the one gap step-ca leaves open — **listing issued certificates** — while presenting a clean, dashboard-friendly REST surface for the things step-ca already does (issue, revoke).
 
