@@ -36,6 +36,7 @@ func (c Chrony) Deploy(ctx context.Context, rc *RunCtx) error {
 	if err := cmp.Build(ctx, rc.Env["CHRONY_IMAGE"], rc.Workdir("chrony")+"/build"); err != nil {
 		return err
 	}
+	tagBuiltVersion(ctx, rc, cmp, rc.Env["CHRONY_IMAGE"], "chrony")
 	if err := cmp.Down(ctx); err != nil {
 		return err
 	}

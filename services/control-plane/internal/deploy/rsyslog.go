@@ -38,6 +38,7 @@ func (r Rsyslog) Deploy(ctx context.Context, rc *RunCtx) error {
 	if err := cmp.Build(ctx, rc.Env["RSYSLOG_IMAGE"], rc.Workdir("rsyslog")+"/build"); err != nil {
 		return err
 	}
+	tagBuiltVersion(ctx, rc, cmp, rc.Env["RSYSLOG_IMAGE"], "rsyslog")
 	rc.Log("Validating the rendered rsyslog configuration (rsyslogd -N1).")
 	if err := cmp.RunRM(ctx,
 		"-v", rc.Workdir("rsyslog")+"/rsyslog.conf:/etc/rsyslog.conf:ro",
