@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // Compose executes the docker CLI (compose v2 and plain docker) in a service
@@ -64,6 +65,23 @@ func (c Compose) Pull(ctx context.Context) error {
 // Build runs `docker build -t tag dir` (used for the locally built images).
 func (c Compose) Build(ctx context.Context, tag, dir string) error {
 	return c.docker(ctx, "build", "-t", tag, dir)
+}
+
+// Tag adds an additional tag to an existing local image.
+func (c Compose) Tag(ctx context.Context, src, dst string) error {
+	return c.docker(ctx, "tag", src, dst)
+}
+
+// Output runs docker with the given args and returns trimmed stdout, for
+// reading a value (not streaming logs) out of a container.
+func (c Compose) Output(ctx context.Context, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Dir = c.Dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("docker %v failed: %w", args, err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // RunRM runs a one-shot `docker run --rm` with the given args appended.
