@@ -57,6 +57,7 @@ var schema = []requirement{
 	// Microsoft-CA web-enrollment emulator (certsrv) for VCF. Fronts step-ca so
 	// SDDC Manager can enroll via its Microsoft CA integration.
 	{"VMSCA_ENABLE", []string{"msca"}, []func(string) error{checkBool}},
+	{"VMSCA_FQDN", []string{"msca"}, []func(string) error{checkFQDN}},
 	{"VMSCA_PORT", []string{"msca"}, []func(string) error{checkPort}},
 	{"VMSCA_USERNAME", []string{"msca"}, nil},
 	{"VMSCA_PASSWORD", []string{"msca"}, []func(string) error{checkNotPlaceholder}},

@@ -117,16 +117,19 @@ func requireCAReady(ctx context.Context, env map[string]string) error {
 // IssueCert issues a leaf for fqdn from step-ca via the step CLI container,
 // writing <prefix>.crt (guaranteed full chain: leaf + intermediate) and
 // <prefix>.key into certDir owned by uid 1000, the shared idiom every service
-// module used. An existing valid cert for the same identity is reused.
-func IssueCert(ctx context.Context, rc *RunCtx, fqdn, certDir, prefix string) error {
+// module used. An existing valid cert for the same identity is reused. extraSANs
+// add further DNS SANs to the same leaf (e.g. an alias name sharing the listener)
+// and must all be present for the cert to be reused.
+func IssueCert(ctx context.Context, rc *RunCtx, fqdn, certDir, prefix string, extraSANs ...string) error {
 	env := rc.Env
 	certFile := filepath.Join(certDir, prefix+".crt")
 	keyFile := filepath.Join(certDir, prefix+".key")
+	sans := append([]string{fqdn}, extraSANs...)
 
 	if err := EnsureDir(certDir, 0o755, 1000, 1000); err != nil {
 		return err
 	}
-	if CertMatchesDNSIdentity(certFile, keyFile, fqdn) {
+	if CertMatchesDNSIdentity(certFile, keyFile, sans...) {
 		rc.Log("Reusing existing certificate for %s.", fqdn)
 		return nil
 	}
@@ -141,21 +144,26 @@ func IssueCert(ctx context.Context, rc *RunCtx, fqdn, certDir, prefix string) er
 	dataDir := env["CA_DATA_DIR"]
 	passwordInContainer := "/home/step/" + strings.TrimPrefix(caPasswordFile(env), dataDir+"/")
 	runner := Compose{Out: func(line string) { rc.Log("%s", line) }}
-	err := runner.RunRM(ctx,
+	args := []string{
 		"--network", "host",
 		"--add-host", env["CA_FQDN"]+":127.0.0.1",
 		"-v", dataDir+":/home/step",
 		"-v", certDir+":/certs",
 		env["CA_IMAGE"],
 		"step", "ca", "certificate", fqdn,
-		"/certs/"+prefix+".crt", "/certs/"+prefix+".key",
-		"--san", fqdn,
+		"/certs/" + prefix + ".crt", "/certs/" + prefix + ".key",
+	}
+	for _, san := range sans {
+		args = append(args, "--san", san)
+	}
+	args = append(args,
 		"--not-after", env["SERVICE_CERT_DURATION"],
 		"--issuer", env["CA_PROVISIONER_NAME"],
 		"--provisioner-password-file", passwordInContainer,
 		"--ca-url", fmt.Sprintf("https://%s:%s", env["CA_FQDN"], env["CA_PORT"]),
 		"--root", "/home/step/certs/root_ca.crt",
 	)
+	err := runner.RunRM(ctx, args...)
 	if err != nil {
 		return fmt.Errorf("issue certificate for %s: %w", fqdn, err)
 	}
@@ -189,10 +197,11 @@ func IssueCert(ctx context.Context, rc *RunCtx, fqdn, certDir, prefix string) er
 }
 
 // CertMatchesDNSIdentity reports whether certFile/keyFile form a currently
-// valid pair whose SANs include fqdn: the native port of
-// certificate_matches_dns_identity (not expired, public keys match, SAN
-// contains the FQDN).
-func CertMatchesDNSIdentity(certFile, keyFile, fqdn string) bool {
+// valid pair whose SANs include every fqdn passed: the native port of
+// certificate_matches_dns_identity (not expired, public keys match, SANs
+// contain all the FQDNs). Passing more than one FQDN requires all of them, so a
+// leaf missing a newly added SAN is correctly treated as stale and reissued.
+func CertMatchesDNSIdentity(certFile, keyFile string, fqdns ...string) bool {
 	certPEM, err := os.ReadFile(certFile)
 	if err != nil {
 		return false
@@ -216,5 +225,10 @@ func CertMatchesDNSIdentity(certFile, keyFile, fqdn string) bool {
 	if now.Before(leaf.NotBefore) || now.After(leaf.NotAfter) {
 		return false
 	}
-	return leaf.VerifyHostname(fqdn) == nil
+	for _, fqdn := range fqdns {
+		if leaf.VerifyHostname(fqdn) != nil {
+			return false
+		}
+	}
+	return true
 }

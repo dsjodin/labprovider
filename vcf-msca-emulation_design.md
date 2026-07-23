@@ -186,8 +186,8 @@ without a restart (same reload behavior as `/api/csr/sign`).
 
 In SDDC Manager -> Certificate Authority -> Edit:
 - CA Type: **Microsoft**.
-- Web Enrollment URL: `https://<control-plane FQDN>:<VMSCA_PORT>/certsrv` (the host must
-  match the control plane's TLS cert SAN, since the emulator reuses that leaf).
+- Web Enrollment URL: `https://<VMSCA_FQDN>:<VMSCA_PORT>/certsrv` (`VMSCA_FQDN` is
+  carried as an additional SAN on the control plane's leaf, which the emulator reuses).
 - Username / Password: `VMSCA_USERNAME` / `VMSCA_PASSWORD`.
 - Template Name: value of `VMSCA_TEMPLATE` (default `VMware`).
 
@@ -237,7 +237,7 @@ parser accepts the output.
 **End-to-end** - against a running lab:
 1. Deploy step-ca, set `VMSCA_ENABLE=true` and the `VMSCA_*` credentials, and restart the
    control plane; confirm the log line `starting msca certsrv emulator` and that
-   `curl -k -u user:pass https://<control-plane FQDN>:<VMSCA_PORT>/certsrv/` returns 200.
+   `curl -k -u user:pass https://<VMSCA_FQDN>:<VMSCA_PORT>/certsrv/` returns 200.
 2. Reproduce the client flow with `curl` (POST a test CSR to `certfnsh.asp`, extract the
    `ReqID`, GET `certnew.cer`, GET `certnew.p7b`) and verify the leaf validates against the
    step-ca root using the returned chain.

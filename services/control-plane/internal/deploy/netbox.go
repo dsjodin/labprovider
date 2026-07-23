@@ -383,6 +383,11 @@ func builtinServiceFQDNs(env map[string]string) []string {
 			fqdns = append(fqdns, env[key])
 		}
 	}
+	// The certsrv name only exists when the MSCA emulator is enabled; publishing
+	// it otherwise would leave a name that resolves but answers nothing.
+	if strings.EqualFold(env["VMSCA_ENABLE"], "true") && env["VMSCA_FQDN"] != "" {
+		fqdns = append(fqdns, env["VMSCA_FQDN"])
+	}
 	return fqdns
 }
 
