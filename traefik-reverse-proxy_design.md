@@ -162,8 +162,9 @@ compose template:
   - **authentik:** label the server on `:9000` (already proxy-aware).
   - **depot:** keep its nginx (retains path-scoped basic-auth) but serve plain
     HTTP on `:80`; remove the host `:443` publish (Traefik owns 443).
-  - **s3 (seaweedfs):** label on `:8333`; path-style bucket addressing only
-    (see Tradeoffs).
+  - **s3 (seaweedfs):** label on `:8333`. Clients use **path-style**
+    (`aws --endpoint-url https://s3.sddc.lab ... s3://<bucket>`), so only the
+    single label `s3.sddc.lab` is ever presented - fully covered by the wildcard.
   - **sftpgo:** label only the **web admin UI** (`:8080`); the SFTP/SSH service
     stays on host `:2022`.
 - Host `ports:` publishes for the HTTP services may be dropped once verified;
@@ -220,9 +221,11 @@ compose template:
 
 - **Plaintext backends** on the `proxy` network (no re-encrypt). Single trusted
   host; acceptable.
-- **Wildcard is one label deep:** `*.sddc.lab` does not cover
-  `bucket.s3.sddc.lab`. S3 must use **path-style** (`s3.sddc.lab/bucket`) or the
-  client disables TLS verification. Confirm how S3 consumers address buckets.
+- **Wildcard is one label deep:** `*.sddc.lab` does not cover a two-deep name
+  like `bucket.s3.sddc.lab`. Resolved for S3: SeaweedFS is accessed **path-style**
+  (`aws --endpoint-url https://s3.sddc.lab ... s3://<bucket>`, single bucket), so
+  only `s3.sddc.lab` is ever presented and the wildcard covers it. Any future
+  service wanting virtual-host subdomains would need its own SAN.
 - **Single wildcard key** shared across all names, and **one expiry** for all UIs
   (re-issue + file-provider hot-reload is the whole renewal story).
 - **New always-on ingress** (SPOF) in front of every web UI; dynamic discovery is
