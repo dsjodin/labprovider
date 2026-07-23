@@ -1,8 +1,21 @@
 # technitium-dns — Design Blueprint
 
+> **Historical / as-built note.** This is the pre-implementation blueprint that
+> proposed replacing Unbound with Technitium. It is kept for background; the
+> parts that describe the *decision* (NetBox as source of truth, reconcile-based
+> `dns-sync`, the `dns.seed` bring-up file, PTR handling) are what shipped. The
+> parts that describe *mechanism* are superseded: Unbound and the `--unbound`
+> backend were removed entirely (Technitium is the only DNS backend), there is
+> no bash bootstrap or `--technitium` flag (services deploy from the Go control
+> plane), and `dns-sync` runs as a container on a reconcile interval, not a
+> systemd timer. Read `README.md` (DNS model), `services/dns-sync/TECHNITIUM_API.md`,
+> and the `technitium`/`dns-sync` deployers for the as-built behavior. The
+> "Open decisions" in section 10 are resolved: Technitium (not PowerDNS),
+> import-seed-into-NetBox, Go, and `--unbound` removed.
+
 Replace labprovider's Unbound stage with **Technitium DNS Server** to get an API- and dashboard-driven DNS layer, with **NetBox as the source of truth** and a reconcile sync pushing records into Technitium.
 
-> Decision context: Unbound in 1.0 is config-file-rendered and re-run-driven — predictable, but it can't be edited live (runtime changes get overwritten on the next `--unbound`) and has no API or UI. Technitium gives a real HTTP API + web console in a single container, doing both authoritative and recursive resolution. This is the piece that turns "edit a flat file and re-render" into "NetBox drives DNS."
+> Decision context: Unbound in 1.0 is config-file-rendered and re-run-driven — predictable, but it can't be edited live (runtime changes get overwritten on the next re-render) and has no API or UI. Technitium gives a real HTTP API + web console in a single container, doing both authoritative and recursive resolution. This is the piece that turns "edit a flat file and re-render" into "NetBox drives DNS."
 
 ---
 

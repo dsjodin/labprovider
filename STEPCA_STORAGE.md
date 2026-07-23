@@ -4,7 +4,7 @@
 > backend and the dashboard reads that, not badger. The BadgerDB material below
 > (bucket layout, binary key encoding, snapshot-on-read, the badger/v3 pin) is
 > **historical** - kept only to explain the migration and in case a badger CA is
-> ever inspected. The live reader is `services/dashboard/internal/certs/certs.go`
+> ever inspected. The live reader is `services/control-plane/internal/certs/certs.go`
 > and it uses `github.com/jackc/pgx/v5`; there is no badger dependency, no
 > snapshot copy, and no `db/` mount anymore.
 >
@@ -22,7 +22,7 @@
 
 Reference for how the dashboard's certificate reader reads issued/revoked certificates from step-ca's backend. This is the **version-fragile** part — it depends on step-ca's stored value shapes, which are not a stable public API.
 
-> All of this is isolated in one file (`services/dashboard/internal/certs/certs.go`). When step-ca bumps and something here changes, that is the only file to fix.
+> All of this is isolated in one file (`services/control-plane/internal/certs/certs.go`). When step-ca bumps and something here changes, that is the only file to fix.
 
 ---
 

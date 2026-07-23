@@ -1,5 +1,16 @@
 # Improvement Suggestions
 
+> **Note (bash bootstrap removed).** This audit predates the v2 cutover. The
+> legacy bash bootstrap (`bootstrap/`) and its `templates/` were the v1 CLI
+> approach and have since been deleted; the control plane (`install.sh` + the Go
+> deployers) is the only deployment surface. Findings scoped to `bootstrap/*.sh`
+> or `templates/*.tpl` (#3, #5, #9, #10, #11, #12, #15) are therefore
+> **OBSOLETE** - the code they reference no longer exists, and the equivalent
+> issues were addressed in the Go deployers where they applied (see the RESOLVED
+> notes and `CHANGELOG.md`). Finding #6 also touches live dns-sync Go code
+> (`services/dns-sync/cmd/dns-seed`) and still stands; re-verify it there.
+> Retained in full as the decision/audit record.
+
 Non-documentation issues found during the 2026-07-08 documentation
 reconciliation audit. Every entry was verified against the code on main
 before inclusion. None of these are implemented by the documentation pass;
