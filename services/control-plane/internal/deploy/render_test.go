@@ -73,7 +73,7 @@ var testEnv = map[string]string{
 
 	"DNS_SYNC_IMAGE":                     "labprovider/dns-sync:0.1.0",
 	"DNS_SYNC_NETBOX_URL":                "https://netbox.sddc.lab",
-	"DNS_SYNC_TECHNITIUM_URL":            "https://dns.sddc.lab:53443",
+	"DNS_SYNC_TECHNITIUM_URL":            "https://dns.sddc.lab",
 	"DNS_SYNC_NETBOX_HOST":               "netbox.sddc.lab",
 	"DNS_SYNC_TECHNITIUM_HOST":           "dns.sddc.lab",
 	"DNS_SYNC_INTERVAL":                  "30s",

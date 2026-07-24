@@ -3,9 +3,9 @@ services:
     image: {{.DNS_SYNC_IMAGE}}
     restart: unless-stopped
     user: "1000:1000"
-    # host networking so the 127.0.0.1 pins reach the host-published NetBox
-    # and Technitium ports; on the default bridge, 127.0.0.1 would be the
-    # container's own loopback.
+    # host networking so the 127.0.0.1 pins reach Traefik on :443 (which fronts
+    # NetBox and Technitium by FQDN); on the default bridge, 127.0.0.1 would be
+    # the container's own loopback.
     network_mode: host
     extra_hosts:
       - "{{.DNS_SYNC_NETBOX_HOST}}:127.0.0.1"
