@@ -216,8 +216,8 @@ func seedNetbox(ctx context.Context, rc *RunCtx, api *netboxAPI, records []seedR
 	if err != nil {
 		return err
 	}
-	roleID, err := api.ensureObject(ctx, "/api/dcim/device-roles/", "name=Provider+Services",
-		map[string]any{"name": "Provider Services", "slug": "provider-services", "color": "607d8b"})
+	roleID, err := api.ensureObject(ctx, "/api/dcim/device-roles/", "slug=labprovider",
+		map[string]any{"name": "labprovider", "slug": "labprovider", "color": "607d8b"})
 	if err != nil {
 		return err
 	}
