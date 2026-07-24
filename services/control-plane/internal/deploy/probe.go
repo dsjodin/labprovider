@@ -30,11 +30,17 @@ func WaitTCP(ctx context.Context, addr string, attempts int, interval time.Durat
 }
 
 // waitHTTPPinned polls a plain-HTTP url whose host is pinned to 127.0.0.1
-// until it answers with a status < 500.
+// until it answers with a status < 500. Redirects are not followed: a service
+// fronted by Traefik commonly 3xx-redirects HTTP to its public HTTPS URL, and
+// following that would hit Traefik's step-ca-signed wildcard, which this client
+// does not trust - a 3xx already means the backend is up.
 func waitHTTPPinned(ctx context.Context, url string, attempts int, interval time.Duration) error {
 	dialer := &net.Dialer{Timeout: 3 * time.Second}
 	client := &http.Client{
 		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				_, port, err := net.SplitHostPort(addr)
