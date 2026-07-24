@@ -53,11 +53,13 @@ func (d DNSSync) Deploy(ctx context.Context, rc *RunCtx) error {
 		return fmt.Errorf("missing step-ca root certificate at %s; deploy ca first", caRoot)
 	}
 	// Both readiness gates pin the lab FQDNs to 127.0.0.1, so nothing depends
-	// on the zone dns-sync is about to populate.
-	if err := WaitHTTPSPinned(ctx, env["DNS_SYNC_NETBOX_URL"]+"/api/", caRoot, 3, 2*time.Second); err != nil {
+	// on the zone dns-sync is about to populate. NetBox is fronted by Traefik and
+	// serves plain HTTP on its loopback port, so honor the configured scheme;
+	// Technitium's API is still HTTPS.
+	if err := waitPinnedScheme(ctx, env["DNS_SYNC_NETBOX_URL"]+"/api/", caRoot, 3, 2*time.Second); err != nil {
 		return fmt.Errorf("NetBox is not reachable on 127.0.0.1 (deploy netbox first): %w", err)
 	}
-	if err := WaitHTTPSPinned(ctx, env["DNS_SYNC_TECHNITIUM_URL"]+"/", caRoot, 3, 2*time.Second); err != nil {
+	if err := waitPinnedScheme(ctx, env["DNS_SYNC_TECHNITIUM_URL"]+"/", caRoot, 3, 2*time.Second); err != nil {
 		return fmt.Errorf("Technitium is not reachable on 127.0.0.1 (deploy technitium first): %w", err)
 	}
 
@@ -174,6 +176,16 @@ func urlHost(raw string) string {
 		return raw
 	}
 	return u.Hostname()
+}
+
+// waitPinnedScheme probes url (host pinned to 127.0.0.1) with the client
+// matching its scheme: plain HTTP for http:// URLs, HTTPS validated against
+// caRoot otherwise.
+func waitPinnedScheme(ctx context.Context, url, caRoot string, attempts int, interval time.Duration) error {
+	if strings.HasPrefix(url, "http://") {
+		return waitHTTPPinned(ctx, url, attempts, interval)
+	}
+	return WaitHTTPSPinned(ctx, url, caRoot, attempts, interval)
 }
 
 // applyDNSSeedToNetbox imports the optional dns.seed into NetBox via the
