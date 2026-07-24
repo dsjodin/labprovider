@@ -237,9 +237,25 @@ func validateSeed(content []byte) []string {
 	return issues
 }
 
+// foundationServices are the base infrastructure the deploy UI pre-selects and
+// which must be deployed and up before any other service can be deployed. The
+// order matches the intended deploy order (deps make it deterministic anyway).
+var foundationServices = []string{"ca", "technitium", "traefik", "netbox", "dns-sync"}
+
+func isFoundation(name string) bool {
+	for _, f := range foundationServices {
+		if f == name {
+			return true
+		}
+	}
+	return false
+}
+
 type serviceInfo struct {
 	Name       string   `json:"name"`
 	Deps       []string `json:"deps"`
+	Core       bool     `json:"core"`
+	Ready      bool     `json:"ready"`
 	LastAction string   `json:"last_action,omitempty"`
 	LastResult string   `json:"last_result,omitempty"`
 	LastAt     string   `json:"last_at,omitempty"`
@@ -252,11 +268,14 @@ func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
 	}
 	var out []serviceInfo
 	for _, svc := range s.opt.Engine.Services() {
-		info := serviceInfo{Name: svc.Name(), Deps: svc.Deps()}
+		info := serviceInfo{Name: svc.Name(), Deps: svc.Deps(), Core: isFoundation(svc.Name())}
 		if st, ok := state.Services[svc.Name()]; ok {
 			info.LastAction = st.LastAction
 			info.LastResult = st.Result
 			info.LastAt = st.At.Format("2006-01-02 15:04:05 UTC")
+			// A service's deploy step records "ok" only after its readiness gate
+			// passes, so a successful last deploy means it came up.
+			info.Ready = st.LastAction == "deploy" && st.Result == "ok"
 		}
 		out = append(out, info)
 	}

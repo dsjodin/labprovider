@@ -38,6 +38,14 @@
   pre#log .step { color: var(--accent); }
   pre#log .fail { color: var(--bad); }
   pre#log .done { color: var(--ok); }
+  label.svc.locked { opacity: 0.4; }
+  label.svc input:disabled { cursor: not-allowed; }
+  label.svc .tag { font-size: 11px; padding: 1px 7px; border-radius: 10px;
+    background: var(--chip); border: 1px solid var(--border); color: var(--muted); }
+  label.svc .tag.core { color: var(--accent); border-color: var(--accent); }
+  label.svc .tag.ready { color: var(--ok); border-color: var(--ok); }
+  #foundationNote { font-size: 13px; margin-bottom: 14px; color: var(--warn); }
+  #foundationNote.ready { color: var(--ok); }
 </style>
 </head>
 <body>
@@ -46,6 +54,7 @@
   <nav><a href="/">Dashboard</a><a href="/config">Configuration</a><a href="/deploy">Deploy</a><a href="/csr">Sign CSR</a></nav>
 </header>
 <main>
+  <div id="foundationNote"></div>
   <div class="panel" id="services"></div>
   <div class="panel">
     <div class="actions">
@@ -64,16 +73,41 @@ const logEl = document.getElementById('log');
 async function loadServices() {
   const res = await fetch('/api/services');
   const services = await res.json() || [];
+
+  const core = services.filter(s => s.core);
+  const foundationReady = core.length > 0 && core.every(s => s.ready);
+  const pending = core.filter(s => !s.ready).map(s => s.name);
+
+  const note = document.getElementById('foundationNote');
+  if (foundationReady) {
+    note.className = 'ready';
+    note.textContent = 'Foundation is up. All services are available to deploy.';
+  } else {
+    note.className = '';
+    note.textContent = 'Deploy the foundation first: ' + core.map(s => s.name).join(' -> ') +
+      '. Other services unlock once these are deployed and up (still to deploy: ' + pending.join(', ') + ').';
+  }
+
   const box = document.getElementById('services');
   box.innerHTML = '';
   for (const s of services) {
+    const locked = !s.core && !foundationReady;
     const label = document.createElement('label');
-    label.className = 'svc';
+    label.className = 'svc' + (locked ? ' locked' : '');
+    if (locked) label.title = 'Deploy the foundation services first.';
     const failed = (s.last_result || '').startsWith('failed');
     label.innerHTML = '<input type="checkbox" value=""> <span class="name"></span>' +
+      '<span class="tag core" hidden>core</span><span class="tag ready" hidden>up</span>' +
       '<span class="deps"></span><span class="last' + (failed ? ' failed' : '') + '"></span>';
-    label.querySelector('input').value = s.name;
+    const cb = label.querySelector('input');
+    cb.value = s.name;
+    cb.disabled = locked;
+    // Pre-select foundation services that are not yet up, so one Deploy click
+    // stands up the base in dependency order.
+    cb.checked = s.core && !s.ready;
     label.querySelector('.name').textContent = s.name;
+    if (s.core) label.querySelector('.tag.core').hidden = false;
+    if (s.ready) label.querySelector('.tag.ready').hidden = false;
     label.querySelector('.deps').textContent = (s.deps && s.deps.length) ? 'needs ' + s.deps.join(', ') : '';
     label.querySelector('.last').textContent = s.last_at ? s.last_action + ' ' + s.last_result + ' at ' + s.last_at : 'never deployed';
     box.appendChild(label);
@@ -81,7 +115,7 @@ async function loadServices() {
 }
 
 function selectAll() {
-  document.querySelectorAll('#services input').forEach(cb => cb.checked = true);
+  document.querySelectorAll('#services input:not(:disabled)').forEach(cb => cb.checked = true);
 }
 
 function append(cls, text) {
