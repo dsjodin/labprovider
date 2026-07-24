@@ -82,10 +82,14 @@ The non-HTTP services keep their own ports regardless: DNS (53), NTP (123), sysl
 (514), SFTP (2022), and step-ca (9000). This is a lab-grade setup: Traefik talks
 plain HTTP to backends over the `proxy` network.
 
-Migration is staged. Currently fronted: the control plane, certsrv, SeaweedFS S3
-(path-style: `https://s3.<domain>/<bucket>`), and the SFTPGo admin UI. The
-remaining stacks (depot, netbox, keycloak, authentik, zitadel) still publish their
-own ports and are migrated in later increments.
+Migration is staged. Currently fronted: the control plane, certsrv, the Technitium
+web console, SeaweedFS S3 (path-style: `https://s3.<domain>/<bucket>`), the SFTPGo
+admin UI, and Keycloak. The remaining stacks (depot, netbox, authentik, zitadel)
+still publish their own ports and are migrated in later increments.
+
+The deploy page pre-selects a foundation set (`ca`, `technitium`, `traefik`,
+`netbox`, `dns-sync`) and greys out - and the API rejects - every other service
+until all five are deployed and up.
 
 ## Overview
 
