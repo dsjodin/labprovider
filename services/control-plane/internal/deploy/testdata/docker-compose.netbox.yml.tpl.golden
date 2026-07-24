@@ -34,7 +34,7 @@ services:
       - redis
     environment:
       ALLOWED_HOSTS: "netbox.sddc.lab"
-      CSRF_TRUSTED_ORIGINS: "https://netbox.sddc.lab:8444"
+      CSRF_TRUSTED_ORIGINS: "https://netbox.sddc.lab"
       DB_HOST: postgres
       DB_NAME: "netbox"
       DB_USER: "netbox"
