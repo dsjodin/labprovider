@@ -12,3 +12,19 @@ services:
     volumes:
       - /opt/labprovider/technitium/data:/etc/dns
       - /opt/labprovider/technitium/certs:/etc/labprovider/technitium-certs:ro
+    networks:
+      - default
+      - proxy
+    # Front the plain-HTTP admin console (5380) at https://dns.sddc.lab. The
+    # HTTPS port (53443) stays published for the dashboard/dns-sync consumers.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.technitium.rule=Host(`dns.sddc.lab`)"
+      - "traefik.http.routers.technitium.entrypoints=websecure"
+      - "traefik.http.routers.technitium.tls=true"
+      - "traefik.http.services.technitium.loadbalancer.server.port=5380"
+
+networks:
+  proxy:
+    external: true
