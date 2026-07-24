@@ -76,13 +76,14 @@ func (t Traefik) Deploy(ctx context.Context, rc *RunCtx) error {
 		return err
 	}
 
-	rc.Log("Waiting for Traefik to serve the wildcard leaf on :443.")
-	caRoot := filepath.Join(env["CA_DATA_DIR"], "certs", "root_ca.crt")
-	url := fmt.Sprintf("https://%s/", env["TRAEFIK_FQDN"])
-	if err := WaitHTTPSPinned(ctx, url, caRoot, 60, 2*time.Second); err != nil {
+	// Probe the loopback listener, not the FQDN: the built-in *.<domain> records
+	// are published by dns-sync (which deploys later), so TRAEFIK_FQDN may not
+	// resolve yet even though Traefik is up and serving the wildcard on :443.
+	rc.Log("Waiting for Traefik to bind :443.")
+	if err := WaitTCP(ctx, "127.0.0.1:443", 60, 2*time.Second); err != nil {
 		return err
 	}
-	rc.Log("Traefik is ready; dashboard at https://%s. Services are reachable by FQDN on :443.", env["TRAEFIK_FQDN"])
+	rc.Log("Traefik is ready; dashboard at https://%s once DNS resolves it. Services are reachable by FQDN on :443.", env["TRAEFIK_FQDN"])
 	return nil
 }
 
