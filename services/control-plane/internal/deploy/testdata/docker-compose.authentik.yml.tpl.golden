@@ -32,12 +32,23 @@ services:
       AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
       AUTHENTIK_BOOTSTRAP_PASSWORD: "akadmin"
       AUTHENTIK_BOOTSTRAP_TOKEN: "aktoken"
+    # TLS is terminated by Traefik; the server's plain-HTTP port (9000) is fronted
+    # at https://idp.sddc.lab and kept on the loopback for readiness.
     ports:
-      - "9443:9443"
+      - "9443:9000"
     volumes:
-      - /opt/labprovider/authentik/certs:/certs:ro
       - /opt/labprovider/authentik/data:/data
       - /opt/labprovider/runtime/authentik/blueprints:/blueprints/custom:ro
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.authentik.rule=Host(`idp.sddc.lab`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls=true"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
 
   worker:
     image: ghcr.io/goauthentik/server:2026.5.3
@@ -58,6 +69,9 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: "akadmin"
       AUTHENTIK_BOOTSTRAP_TOKEN: "aktoken"
     volumes:
-      - /opt/labprovider/authentik/certs:/certs:ro
       - /opt/labprovider/authentik/data:/data
       - /opt/labprovider/runtime/authentik/blueprints:/blueprints/custom:ro
+
+networks:
+  proxy:
+    external: true

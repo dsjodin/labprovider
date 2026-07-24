@@ -32,12 +32,23 @@ services:
       AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
       AUTHENTIK_BOOTSTRAP_PASSWORD: "{{.AUTHENTIK_ADMIN_PASSWORD}}"
       AUTHENTIK_BOOTSTRAP_TOKEN: "{{.AUTHENTIK_API_TOKEN}}"
+    # TLS is terminated by Traefik; the server's plain-HTTP port (9000) is fronted
+    # at https://{{.AUTHENTIK_FQDN}} and kept on the loopback for readiness.
     ports:
-      - "{{.AUTHENTIK_PORT}}:9443"
+      - "{{.AUTHENTIK_PORT}}:9000"
     volumes:
-      - {{.AUTHENTIK_DIR}}/certs:/certs:ro
       - {{.AUTHENTIK_DIR}}/data:/data
       - {{.WORKDIR}}/authentik/blueprints:/blueprints/custom:ro
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.authentik.rule=Host(`{{.AUTHENTIK_FQDN}}`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls=true"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
 
   worker:
     image: {{.AUTHENTIK_IMAGE}}
@@ -58,6 +69,9 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: "{{.AUTHENTIK_ADMIN_PASSWORD}}"
       AUTHENTIK_BOOTSTRAP_TOKEN: "{{.AUTHENTIK_API_TOKEN}}"
     volumes:
-      - {{.AUTHENTIK_DIR}}/certs:/certs:ro
       - {{.AUTHENTIK_DIR}}/data:/data
       - {{.WORKDIR}}/authentik/blueprints:/blueprints/custom:ro
+
+networks:
+  proxy:
+    external: true
