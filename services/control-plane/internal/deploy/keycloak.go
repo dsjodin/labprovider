@@ -38,14 +38,7 @@ func (k Keycloak) Deploy(ctx context.Context, rc *RunCtx) error {
 		return err
 	}
 
-	certDir := filepath.Join(env["KEYCLOAK_DIR"], "certs")
 	if err := EnsureDir(filepath.Join(env["KEYCLOAK_DIR"], "data"), 0o755, 1000, 1000); err != nil {
-		return err
-	}
-	if err := IssueCert(ctx, rc, env["KEYCLOAK_FQDN"], certDir, "keycloak"); err != nil {
-		return err
-	}
-	if err := writeKeycloakFullChain(rc, certDir); err != nil {
 		return err
 	}
 
@@ -60,14 +53,16 @@ func (k Keycloak) Deploy(ctx context.Context, rc *RunCtx) error {
 		return err
 	}
 
-	url := fmt.Sprintf("https://%s:%s/", env["KEYCLOAK_FQDN"], env["KEYCLOAK_PORT"])
+	// Keycloak serves plain HTTP behind Traefik; probe the loopback-published
+	// port so readiness does not depend on DNS. Public access is at
+	// https://<KEYCLOAK_FQDN> through Traefik.
+	url := fmt.Sprintf("http://%s:%s/", env["KEYCLOAK_FQDN"], env["KEYCLOAK_PORT"])
 	rc.Log("Waiting for Keycloak at %s.", url)
-	caRoot := filepath.Join(env["CA_DATA_DIR"], "certs", "root_ca.crt")
-	if err := WaitHTTPSPinned(ctx, url, caRoot, 45, 2*time.Second); err != nil {
+	if err := waitHTTPPinned(ctx, url, 45, 2*time.Second); err != nil {
 		return err
 	}
-	rc.Log("Keycloak is ready at %s (realm %s; use keycloak-full-chain.pem for the VCF SSO chain upload).",
-		url, env["KEYCLOAK_BOOTSTRAP_REALM_NAME"])
+	rc.Log("Keycloak is ready at https://%s (realm %s; VCF trusts the step-ca root - upload %s/certs/root_ca.crt).",
+		env["KEYCLOAK_FQDN"], env["KEYCLOAK_BOOTSTRAP_REALM_NAME"], env["CA_DATA_DIR"])
 	return nil
 }
 
@@ -173,38 +168,4 @@ func buildKeycloakRealm(env map[string]string) ([]byte, error) {
 		}}
 	}
 	return json.MarshalIndent(realm, "", "  ")
-}
-
-// writeKeycloakFullChain builds keycloak-full-chain.pem (leaf, intermediate,
-// root - exactly 3 certificates) for the VCF SSO certificate-chain upload.
-func writeKeycloakFullChain(rc *RunCtx, certDir string) error {
-	env := rc.Env
-	certPEM, err := os.ReadFile(filepath.Join(certDir, "keycloak.crt"))
-	if err != nil {
-		return err
-	}
-	// The leaf is the first certificate block in the served cert file.
-	end := strings.Index(string(certPEM), "-----END CERTIFICATE-----")
-	if end < 0 {
-		return fmt.Errorf("no certificate in keycloak.crt")
-	}
-	leaf := certPEM[:end+len("-----END CERTIFICATE-----")+1]
-
-	intermediate, err := os.ReadFile(filepath.Join(env["CA_DATA_DIR"], "certs", "intermediate_ca.crt"))
-	if err != nil {
-		return err
-	}
-	root, err := os.ReadFile(filepath.Join(env["CA_DATA_DIR"], "certs", "root_ca.crt"))
-	if err != nil {
-		return err
-	}
-	full := append(append(leaf, intermediate...), root...)
-	if strings.Count(string(full), "BEGIN CERTIFICATE") != 3 {
-		return fmt.Errorf("keycloak full certificate chain bundle must contain exactly 3 certificates")
-	}
-	fullChain := filepath.Join(certDir, "keycloak-full-chain.pem")
-	if err := os.WriteFile(fullChain, full, 0o644); err != nil {
-		return err
-	}
-	return os.Chown(fullChain, 1000, 1000)
 }
