@@ -244,6 +244,11 @@ func seedNetbox(ctx context.Context, rc *RunCtx, api *netboxAPI, records []seedR
 	}
 	_ = prefix
 	description := "labprovider services: " + strings.Join(builtinServiceFQDNs(env), ", ")
+	// NetBox caps ip-addresses.description at 200 characters; the built-in FQDN
+	// list can exceed that (more so with traefik/certsrv added), so truncate.
+	if len(description) > 200 {
+		description = description[:197] + "..."
+	}
 	hostAddr := env["HOST_IP"]
 	hostPayload := map[string]any{"address": hostAddr, "dns_name": env["LABPROVIDER_FQDN"], "status": "active", "description": description}
 	hostIPID, err := api.getObjectID(ctx, "/api/ipam/ip-addresses/", "address="+url.QueryEscape(hostAddr))
