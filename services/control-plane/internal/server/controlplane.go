@@ -251,6 +251,18 @@ func isFoundation(name string) bool {
 	return false
 }
 
+// foundationReady reports whether every foundation service last deployed
+// successfully (the engine records "ok" only after the readiness gate passes).
+func foundationReady(state deploy.State) bool {
+	for _, name := range foundationServices {
+		st, ok := state.Services[name]
+		if !ok || st.LastAction != "deploy" || st.Result != "ok" {
+			return false
+		}
+	}
+	return true
+}
+
 type serviceInfo struct {
 	Name       string   `json:"name"`
 	Deps       []string `json:"deps"`
@@ -296,6 +308,17 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	if len(req.Services) == 0 {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("no services selected"))
 		return
+	}
+	// Enforce the two-phase flow the deploy UI presents: no non-foundation
+	// service may be deployed until the whole foundation is up. Removes are
+	// exempt (you can always tear a service down).
+	if !req.Remove && s.opt.Engine.State != nil && !foundationReady(s.opt.Engine.State.Snapshot()) {
+		for _, name := range req.Services {
+			if !isFoundation(name) {
+				writeErr(w, http.StatusConflict, fmt.Errorf("deploy the foundation services (%s) before %s", strings.Join(foundationServices, ", "), name))
+				return
+			}
+		}
 	}
 	id, err := s.opt.Engine.Start(req.Services, req.Remove)
 	if err != nil {
