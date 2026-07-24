@@ -141,6 +141,11 @@ func (s *Server) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	// Let startup-bound components pick up the new config (e.g. the certsrv
+	// listener binds/unbinds when VMSCA is toggled) without a restart.
+	if s.opt.OnConfigSaved != nil {
+		s.opt.OnConfigSaved()
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 

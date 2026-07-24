@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -75,12 +76,14 @@ func main() {
 		}
 	}
 
-	// Optional Microsoft-CA web-enrollment emulator (certsrv) for VCF; wired
-	// below when the managed config enables it.
-	var (
-		mscaHandler http.Handler
-		mscaAddr    string
-	)
+	// The control plane serves plain HTTP (Traefik terminates TLS); the same
+	// decision drives the certsrv listener below.
+	useTLS := resolveTLS(cfg.TLSCert, cfg.TLSKey, logger)
+
+	// Optional Microsoft-CA web-enrollment emulator (certsrv) for VCF. Managed
+	// by mscaManager so enabling it in the wizard binds the listener on the next
+	// config save, with no control-plane restart.
+	var msca *mscaManager
 
 	// The deploy engine needs the shipped example config (baked into the image
 	// by install.sh's build). Without it - the legacy --dashboard deployment -
@@ -122,11 +125,8 @@ func main() {
 		engine.Register(deploy.DNSSync{})
 		opt.Engine = engine
 
-		if h, addr, err := buildMSCA(store, logger); err != nil {
-			logger.Warn("msca certsrv emulator disabled", "err", err)
-		} else if h != nil {
-			mscaHandler, mscaAddr = h, addr
-		}
+		msca = &mscaManager{store: store, logger: logger, tlsCert: cfg.TLSCert, tlsKey: cfg.TLSKey, useTLS: useTLS}
+		opt.OnConfigSaved = msca.Reconcile
 	} else {
 		logger.Warn("deploy engine disabled: example config not found", "path", cfg.ExamplePath)
 	}
@@ -150,35 +150,16 @@ func main() {
 		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancelShutdown()
 		_ = httpSrv.Shutdown(shutdownCtx)
+		if msca != nil {
+			msca.Stop()
+		}
 	}()
 
-	// Decide HTTP vs HTTPS before binding. A configured-but-unreadable or
-	// malformed cert/key must not crash-loop the server: warn and fall back to
-	// HTTP, and reflect the mode actually used in the startup log.
-	useTLS := resolveTLS(cfg.TLSCert, cfg.TLSKey, logger)
-
 	// The certsrv emulator is a second listener on its own port, serving plain
-	// HTTP behind Traefik (which terminates the wildcard and fronts VMSCA_FQDN).
-	if mscaHandler != nil {
-		mscaSrv := &http.Server{Addr: mscaAddr, Handler: mscaHandler, ReadHeaderTimeout: 10 * time.Second}
-		go func() {
-			<-ctx.Done()
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancelShutdown()
-			_ = mscaSrv.Shutdown(shutdownCtx)
-		}()
-		go func() {
-			logger.Info("starting msca certsrv emulator", "addr", mscaAddr, "tls", useTLS)
-			var err error
-			if useTLS {
-				err = mscaSrv.ListenAndServeTLS(cfg.TLSCert, cfg.TLSKey)
-			} else {
-				err = mscaSrv.ListenAndServe()
-			}
-			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logger.Error("msca listener exited", "err", err)
-			}
-		}()
+	// HTTP behind Traefik. Bind it now if VMSCA is already enabled; a later
+	// wizard save re-runs this via OnConfigSaved.
+	if msca != nil {
+		msca.Reconcile()
 	}
 
 	logger.Info("starting control-plane",
@@ -213,6 +194,68 @@ func resolveTLS(certPath, keyPath string, logger *slog.Logger) bool {
 		return false
 	}
 	return true
+}
+
+// mscaManager owns the certsrv (MSCA) emulator listener and rebinds it from the
+// managed config. Because the listener is bound from config that on a fresh
+// install is saved after the process starts, Reconcile is called both at
+// startup and on every wizard save, so enabling/disabling VMSCA (or changing its
+// credentials) takes effect without a control-plane restart.
+type mscaManager struct {
+	store   envfile.Store
+	logger  *slog.Logger
+	tlsCert string
+	tlsKey  string
+	useTLS  bool
+
+	mu  sync.Mutex
+	srv *http.Server
+}
+
+// Reconcile stops any running certsrv listener and starts a fresh one when
+// VMSCA is enabled. Safe to call repeatedly.
+func (m *mscaManager) Reconcile() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.srv != nil {
+		_ = m.srv.Close()
+		m.srv = nil
+	}
+
+	h, addr, err := buildMSCA(m.store, m.logger)
+	if err != nil {
+		m.logger.Warn("msca certsrv emulator disabled", "err", err)
+		return
+	}
+	if h == nil {
+		return // VMSCA not enabled
+	}
+
+	srv := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	m.srv = srv
+	go func() {
+		m.logger.Info("starting msca certsrv emulator", "addr", addr, "tls", m.useTLS)
+		var err error
+		if m.useTLS {
+			err = srv.ListenAndServeTLS(m.tlsCert, m.tlsKey)
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			m.logger.Error("msca listener exited", "err", err)
+		}
+	}()
+}
+
+// Stop shuts the current certsrv listener down (process shutdown).
+func (m *mscaManager) Stop() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.srv != nil {
+		_ = m.srv.Close()
+		m.srv = nil
+	}
 }
 
 // buildMSCA constructs the certsrv emulator handler from the managed config

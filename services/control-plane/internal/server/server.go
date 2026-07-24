@@ -56,6 +56,11 @@ type Options struct {
 	// --dashboard deployment) leaves the dashboard-only surface.
 	Engine *deploy.Engine
 
+	// OnConfigSaved, when set, is invoked after the managed config is saved via
+	// the wizard, so startup-bound components (the certsrv listener) can
+	// reconcile to the new config without a control-plane restart.
+	OnConfigSaved func()
+
 	Logger *slog.Logger
 	Now    func() time.Time // injectable clock; defaults to time.Now
 }
