@@ -15,3 +15,17 @@ services:
       - "8333:8333"
     volumes:
       - /opt/labprovider/seaweedfs:/data
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.s3.rule=Host(`s3.sddc.lab`)"
+      - "traefik.http.routers.s3.entrypoints=websecure"
+      - "traefik.http.routers.s3.tls=true"
+      - "traefik.http.services.s3.loadbalancer.server.port=8333"
+
+networks:
+  proxy:
+    external: true

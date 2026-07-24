@@ -108,6 +108,9 @@ func main() {
 		engine.Register(deploy.Chrony{})
 		engine.Register(deploy.Rsyslog{})
 		engine.Register(deploy.CA{})
+		// Ingress comes up right after the CA so certificate-consuming services
+		// can register their Traefik routes and probe readiness through it.
+		engine.Register(deploy.Traefik{})
 		engine.Register(deploy.Technitium{})
 		engine.Register(deploy.Depot{})
 		engine.Register(deploy.Keycloak{})

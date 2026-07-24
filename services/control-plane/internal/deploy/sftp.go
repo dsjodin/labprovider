@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -28,12 +27,6 @@ func (s SFTP) Deploy(ctx context.Context, rc *RunCtx) error {
 	env := rc.Env
 
 	if err := validateSFTPBackupVars(env); err != nil {
-		return err
-	}
-	if err := requireCAReady(ctx, env); err != nil {
-		return err
-	}
-	if err := IssueCert(ctx, rc, env["SFTP_FQDN"], env["SFTP_CERT_DIR"], "sftpgo"); err != nil {
 		return err
 	}
 	if err := EnsureDir(rc.Workdir("sftpgo"), 0o755, -1, -1); err != nil {
@@ -58,17 +51,18 @@ func (s SFTP) Deploy(ctx context.Context, rc *RunCtx) error {
 		return err
 	}
 
-	adminURL := fmt.Sprintf("https://%s:%s/", env["SFTP_FQDN"], env["SFTP_ADMIN_PORT"])
+	// The admin UI serves plain HTTP on the loopback-published admin port;
+	// Traefik fronts it publicly at https://<SFTP_FQDN>.
+	adminURL := fmt.Sprintf("http://%s:%s/", env["SFTP_FQDN"], env["SFTP_ADMIN_PORT"])
 	rc.Log("Waiting for the SFTPGo admin UI at %s.", adminURL)
-	caRoot := filepath.Join(env["CA_DATA_DIR"], "certs", "root_ca.crt")
-	if err := WaitHTTPSPinned(ctx, adminURL, caRoot, 60, 2*time.Second); err != nil {
+	if err := waitHTTPPinned(ctx, adminURL, 60, 2*time.Second); err != nil {
 		return err
 	}
 	if err := ensureSFTPBackupUser(ctx, rc); err != nil {
 		return err
 	}
-	rc.Log("SFTPGo is ready: sftp on port %s, admin UI at https://%s:%s/web/admin/login.",
-		env["SFTP_PORT"], env["SFTP_FQDN"], env["SFTP_ADMIN_PORT"])
+	rc.Log("SFTPGo is ready: sftp on port %s, admin UI at https://%s/web/admin/login.",
+		env["SFTP_PORT"], env["SFTP_FQDN"])
 	return nil
 }
 
@@ -80,8 +74,8 @@ func (s SFTP) Remove(ctx context.Context, rc *RunCtx) error {
 	if err := os.RemoveAll(rc.Workdir("sftpgo")); err != nil {
 		return err
 	}
-	rc.Log("Removed SFTPGo containers and runtime files. Persistent data in %s, %s, and %s was preserved.",
-		rc.Env["SFTP_DATA_DIR"], rc.Env["SFTP_HOME_DIR"], rc.Env["SFTP_CERT_DIR"])
+	rc.Log("Removed SFTPGo containers and runtime files. Persistent data in %s and %s was preserved.",
+		rc.Env["SFTP_DATA_DIR"], rc.Env["SFTP_HOME_DIR"])
 	return nil
 }
 
@@ -120,11 +114,8 @@ func ensureSFTPBackupUser(ctx context.Context, rc *RunCtx) error {
 		return err
 	}
 
-	client, err := pinnedHTTPSClient(filepath.Join(env["CA_DATA_DIR"], "certs", "root_ca.crt"))
-	if err != nil {
-		return err
-	}
-	base := fmt.Sprintf("https://%s:%s", env["SFTP_FQDN"], env["SFTP_ADMIN_PORT"])
+	client := &http.Client{Timeout: 10 * time.Second}
+	base := fmt.Sprintf("http://%s:%s", env["SFTP_FQDN"], env["SFTP_ADMIN_PORT"])
 
 	// Basic-auth token request.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/v2/token", nil)

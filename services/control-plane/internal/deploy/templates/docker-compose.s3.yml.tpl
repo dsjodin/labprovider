@@ -15,3 +15,17 @@ services:
       - "{{.S3_PORT}}:{{.S3_PORT}}"
     volumes:
       - {{.S3_DATA_DIR}}:/data
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.s3.rule=Host(`{{.S3_FQDN}}`)"
+      - "traefik.http.routers.s3.entrypoints=websecure"
+      - "traefik.http.routers.s3.tls=true"
+      - "traefik.http.services.s3.loadbalancer.server.port={{.S3_PORT}}"
+
+networks:
+  proxy:
+    external: true

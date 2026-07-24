@@ -8,6 +8,7 @@ import (
 
 var testEnv = map[string]string{
 	"S3_IMAGE":        "docker.io/chrislusf/seaweedfs:4.31",
+	"S3_FQDN":         "s3.sddc.lab",
 	"S3_ACCESS_KEY":   "ak",
 	"S3_SECRET_KEY":   "sk",
 	"S3_PORT":         "8333",
