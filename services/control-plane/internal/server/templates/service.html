@@ -1,0 +1,240 @@
+{{ define "topbar" }}
+<h1>{{ .Row.Name }}</h1>
+{{ template "svcstate" .Row }}
+{{- if .Row.Core }}<span class="badge off">core</span>{{ end }}
+<span class="meta">
+  <a href="/services">All services</a>
+</span>
+{{ end }}
+
+{{ define "content" }}
+<div class="grid">
+
+  <section class="panel">
+    <h2>Overview</h2>
+    <div class="body">
+      <dl class="kv">
+        <dt>State</dt><dd>{{ .Row.State }}</dd>
+        {{- if .Row.FQDN }}
+        <dt>Address</dt>
+        <dd>{{ if .Row.URL }}<a class="mono" href="{{ .Row.URL }}" target="_blank" rel="noopener">{{ .Row.URL }}</a>
+            {{- else }}<span class="mono">{{ .Row.FQDN }}</span>{{ end }}</dd>
+        {{- end }}
+        {{- if .Row.DataDir }}<dt>Data directory</dt><dd class="mono">{{ .Row.DataDir }}</dd>{{ end }}
+        <dt>Depends on</dt><dd>{{ if .Deps }}{{ join ", " .Deps }}{{ else }}nothing{{ end }}</dd>
+        <dt>Last deploy</dt>
+        <dd>{{ if .Row.LastAt }}{{ .Row.LastAction }} {{ .Row.LastResult }} at {{ .Row.LastAt }}
+            {{- else }}never{{ end }}</dd>
+      </dl>
+      <div class="actions spaced-top">
+        <button class="primary" onclick="runService(this, false)">Deploy</button>
+        {{- if .Row.Containers }}
+        <button onclick="restartService(this, '{{ .Row.Name }}')">Restart</button>
+        {{- end }}
+        <button class="danger" onclick="runService(this, true)">Remove</button>
+      </div>
+      <p class="note tight" id="runstatus"></p>
+      <p class="note">Deploy renders templates and reissues certificates; restart only stops and
+        starts the containers. Remove preserves persistent data.</p>
+    </div>
+  </section>
+
+  {{- with .Access }}
+  <section class="panel">
+    <h2>Access</h2>
+    <div class="body">{{ template "accesscard" . }}</div>
+  </section>
+  {{- end }}
+
+  <section class="panel wide">
+    <h2>Containers</h2>
+    <div class="body">
+    {{- if not .Status.OK }}{{ template "unavail" .Status }}
+    {{- else if .Row.Containers }}{{ template "containers" .Row.Containers }}
+    {{- else }}<p class="note">No containers. {{ if .Row.Stopped }}The service deployed and its containers are gone.{{ else }}Deploy it to create them.{{ end }}</p>{{ end }}
+    </div>
+  </section>
+
+  <section class="panel wide">
+    <h2>Configuration</h2>
+    <div class="body">
+    {{- if .Vars }}
+      <table>
+        <tr><th>Variable</th><th>Value</th></tr>
+        {{- range .Vars }}
+        <tr>
+          <td class="mono">{{ .Name }}</td>
+          <td class="copyrow">
+            {{- if .Generated }}<span class="note">generated, stored on disk</span>
+            {{- else if not .Value }}<span class="note">not set</span>
+            {{- else if .Secret }}<span class="val mono masked">{{ .Value }}</span>
+              <button class="act ghost" onclick="toggleSecret(this)">show</button>
+              <button class="act ghost" onclick="copyValue(this)">copy</button>
+            {{- else }}<span class="val mono">{{ .Value }}</span>{{ end }}
+          </td>
+        </tr>
+        {{- end }}
+      </table>
+      <p class="note">These are the variables a redeploy of {{ .Row.Name }} is gated on: changing any of
+        them marks the service out of date. Edit them under
+        <a href="/config">Configuration</a>.</p>
+    {{- else }}<p class="note">No managed configuration saved yet.</p>{{ end }}
+    </div>
+  </section>
+
+  {{- if .Depot }}
+  <section class="panel wide">
+    <h2>Fetch into the depot</h2>
+    <div class="body">
+      <p class="note tight">The control plane downloads the URL to
+        <span class="mono">{{ .Row.DataDir }}/&lt;path&gt;</span>. Closing this page does not stop it,
+        and an interrupted transfer resumes where it stopped.</p>
+      <div class="formgrid">
+        <label>Source URL<input type="text" id="fetchurl" placeholder="https://depot.example.com/PROD/COMP/bundle.tar"></label>
+        <label>Destination (relative to the depot data directory)<input type="text" id="fetchdest" placeholder="PROD/COMP/bundle.tar"></label>
+        <label>Username (optional)<input type="text" id="fetchuser" autocomplete="off"></label>
+        <label>Password or token (optional)<input type="password" id="fetchpass" autocomplete="off"></label>
+        <label>Expected sha256 (optional)<input type="text" id="fetchsum" placeholder="64 hex characters"></label>
+      </div>
+      <div class="actions spaced-top">
+        <button class="primary" id="fetchstart" onclick="startFetch()">Start transfer</button>
+        <button id="fetchcancel" onclick="cancelFetch()" disabled>Cancel</button>
+        <span class="note" id="fetchstatus"></span>
+      </div>
+      <div class="bar" id="fetchbarwrap" hidden><span id="fetchbar"></span></div>
+      <p class="note">Credentials are used for the transfer and discarded - never written to the
+        managed config, never logged.</p>
+    </div>
+  </section>
+  {{- end }}
+
+  {{- if .Logs }}
+  <section class="panel wide">
+    <h2>Recent output</h2>
+    <div class="body">
+      {{- range .Logs }}
+      <h3 class="logtitle mono">{{ .Container }}</h3>
+      {{- if .Err }}<p class="note err">Log unavailable: {{ .Err }}</p>
+      {{- else if .Lines }}<pre class="log">{{ range .Lines }}{{ . }}
+{{ end }}</pre>
+      {{- else }}<p class="note">No output.</p>{{ end }}
+      {{- end }}
+      <p class="note">Last {{ .LogTail }} lines per container.</p>
+    </div>
+  </section>
+  {{- end }}
+
+</div>
+{{ end }}
+
+{{ define "scripts" }}
+{{ template "svcscripts" }}
+<script>
+// Deploy and remove are the same endpoint the deploy page posts to; the run is
+// then watched there, so there is exactly one place that renders a deploy log.
+async function runService(btn, remove) {
+  const name = {{ .Row.Name }};
+  if (!confirm((remove ? 'Remove ' : 'Deploy ') + name + '?' + (remove ? ' Persistent data is preserved.' : ''))) return;
+  const status = document.getElementById('runstatus');
+  btn.disabled = true;
+  status.className = 'note tight';
+  status.textContent = (remove ? 'Removing' : 'Deploying') + ' ' + name + '...';
+  try {
+    const resp = await fetch('/api/deploy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ services: [name], remove: remove })
+    });
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(body.error || ('HTTP ' + resp.status));
+    location.href = '/deploy?run=' + body.id + (remove ? '&remove=1' : '');
+  } catch (e) {
+    status.className = 'note err';
+    status.textContent = e.message;
+    btn.disabled = false;
+  }
+}
+</script>
+{{- if .Depot }}
+<script>
+// A transfer has one number that changes, not a log, so the page polls a status
+// object instead of holding an event stream open.
+const POLL_MS = 2000;
+const fetchStatus = document.getElementById('fetchstatus');
+const fetchBarWrap = document.getElementById('fetchbarwrap');
+const fetchBar = document.getElementById('fetchbar');
+const startBtn = document.getElementById('fetchstart');
+const cancelBtn = document.getElementById('fetchcancel');
+
+function human(n) {
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return (i === 0 ? n : n.toFixed(1)) + ' ' + units[i];
+}
+
+function showFetch(s) {
+  const running = s.active;
+  startBtn.disabled = running;
+  cancelBtn.disabled = !running;
+  if (s.stage === 'idle' && !s.received) {
+    fetchStatus.textContent = '';
+    fetchBarWrap.hidden = true;
+    return;
+  }
+  fetchBarWrap.hidden = s.total <= 0;
+  if (s.total > 0) fetchBar.style.width = Math.floor(s.received * 100 / s.total) + '%';
+  let text = s.stage + ' ' + human(s.received);
+  if (s.total > 0) text += ' of ' + human(s.total);
+  if (s.resumed > 0) text += ' (resumed at ' + human(s.resumed) + ')';
+  if (s.error) text += ' - ' + s.error;
+  fetchStatus.className = s.error ? 'note err' : 'note';
+  fetchStatus.textContent = text;
+}
+
+async function pollFetch() {
+  try {
+    const resp = await fetch('/api/depot/fetch');
+    if (!resp.ok) return;
+    showFetch(await resp.json());
+  } catch (e) { /* transient; the next poll says the truth */ }
+}
+
+async function startFetch() {
+  startBtn.disabled = true;
+  fetchStatus.className = 'note';
+  fetchStatus.textContent = 'Starting...';
+  try {
+    const resp = await fetch('/api/depot/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: document.getElementById('fetchurl').value,
+        dest: document.getElementById('fetchdest').value,
+        username: document.getElementById('fetchuser').value,
+        password: document.getElementById('fetchpass').value,
+        sha256: document.getElementById('fetchsum').value
+      })
+    });
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(body.error || ('HTTP ' + resp.status));
+    document.getElementById('fetchpass').value = '';
+    showFetch(body);
+  } catch (e) {
+    fetchStatus.className = 'note err';
+    fetchStatus.textContent = e.message;
+    startBtn.disabled = false;
+  }
+}
+
+async function cancelFetch() {
+  cancelBtn.disabled = true;
+  await fetch('/api/depot/fetch/cancel', { method: 'POST' });
+  pollFetch();
+}
+
+pollFetch();
+setInterval(pollFetch, POLL_MS);
+</script>
+{{- end }}
+{{ end }}

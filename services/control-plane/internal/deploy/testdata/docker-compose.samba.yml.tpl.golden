@@ -1,0 +1,12 @@
+services:
+  samba:
+    image: labprovider/samba:0.1.0
+    restart: unless-stopped
+    environment:
+      SMB_USER: "labuser"
+      SMB_PASSWORD: "smbpass"
+    ports:
+      - "445:445"
+    volumes:
+      - /opt/labprovider/runtime/samba/smb.conf:/etc/samba/smb.conf:ro
+      - /opt/labprovider/samba/labshare:/shares/labshare

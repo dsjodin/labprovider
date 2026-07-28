@@ -1,0 +1,31 @@
+{{ define "content" }}
+{{- if .Services.Status.OK }}
+
+  {{- if .Services.Services }}
+  <div class="chips wide">
+    <span class="chip ok"><b>{{ .Services.CountRunning }}</b> running</span>
+    <span class="chip warn"><b>{{ .Services.CountDegraded }}</b> degraded</span>
+    <span class="chip bad"><b>{{ .Services.CountStopped }}</b> stopped</span>
+    <span class="chip"><b>{{ .Services.CountNotDeployed }}</b> not deployed</span>
+  </div>
+  <div class="cards">
+    {{- range .Services.Services }}{{ template "svccard" . }}{{ end }}
+  </div>
+  {{- else }}
+  <p class="note">No services registered.</p>
+  {{- end }}
+
+  {{- if .Services.Unmanaged }}
+  <section class="panel wide spaced">
+    <h2>Unmanaged containers</h2>
+    <div class="body">
+      <p class="note tight">Matching CONTROL_PLANE_CONTAINER_FILTERS but belonging to no labprovider service.</p>
+      {{ template "containers" .Services.Unmanaged }}
+    </div>
+  </section>
+  {{- end }}
+
+{{- else }}{{ template "unavail" .Services.Status }}{{ end }}
+{{ end }}
+
+{{ define "scripts" }}{{ template "svcscripts" }}{{ end }}

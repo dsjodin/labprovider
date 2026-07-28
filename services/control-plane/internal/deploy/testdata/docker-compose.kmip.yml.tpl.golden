@@ -1,0 +1,18 @@
+services:
+  kmip:
+    image: labprovider/kmip:0.1.0
+    restart: unless-stopped
+    ports:
+      # KMIP is TLS with client-certificate auth on its own port, not HTTP, so
+      # there is no Traefik router: vCenter connects here directly.
+      - "5696:5696"
+    volumes:
+      - /opt/labprovider/runtime/kmip/server.conf:/etc/pykmip/server.conf:ro
+      - /opt/labprovider/runtime/kmip/policies:/etc/pykmip/policies:ro
+      - /opt/labprovider/kmip/certs:/etc/pykmip/certs:ro
+      - /opt/labprovider/kmip/data:/var/lib/pykmip
+    networks:
+      - default
+
+networks:
+  default:

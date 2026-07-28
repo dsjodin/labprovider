@@ -1,0 +1,463 @@
+/* labprovider control plane - shared stylesheet.
+ *
+ * Loaded by every page through templates/layout.html. Before this file the
+ * palette and base rules were copy-pasted into all six templates, so a color
+ * change was a six-file edit and the copies had already drifted.
+ *
+ * Layered on open-props.min.css, which supplies the --size-*, --radius-*,
+ * --font-*, and --ease-* scales. Colors are defined here, not taken from
+ * Open Props' scales, because the palette is a deliberate choice.
+ */
+
+:root {
+  /* Surfaces, darkest to lightest: page, sidebar, card, inset. Layering is
+     what makes cards read as cards without heavy borders. */
+  --bg: #0b0e14;
+  --surface-1: #11151d;
+  --surface-2: #161b24;
+  --surface-3: #1d232e;
+
+  --border: #242c39;
+  --border-strong: #333d4d;
+
+  --fg: #e4e8ef;
+  --fg-muted: #949eae;
+  --fg-dim: #6b7686;
+
+  --accent: #4d8dff;
+  --accent-dim: #2f5db3;
+  --accent-fg: #06090f;
+  --ok: #3ecf8e;
+  --warn: #e0a341;
+  --bad: #ef5f5b;
+
+  /* Tints for pills and bars. Flat rgba over the surface, no gradients. */
+  --ok-bg: rgb(62 207 142 / 14%);
+  --warn-bg: rgb(224 163 65 / 16%);
+  --bad-bg: rgb(239 95 91 / 14%);
+  --accent-bg: rgb(77 141 255 / 14%);
+
+  --sidebar-w: 224px;
+  --font-ui: var(--font-system-ui);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
+
+/* ---------------------------------------------------------------- shell */
+
+.shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+
+.sidebar {
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2);
+  padding: var(--size-4) var(--size-4) var(--size-3);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+.brand svg { color: var(--accent); flex: none; }
+.brand:hover { text-decoration: none; }
+
+.sidebar nav { padding: var(--size-2) var(--size-2) var(--size-5); }
+
+.navgroup {
+  padding: var(--size-3) var(--size-3) var(--size-1);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2);
+  padding: 7px var(--size-3);
+  border-radius: var(--radius-2);
+  color: var(--fg-muted);
+  font-size: 13.5px;
+  transition: background var(--ease-2) 120ms, color var(--ease-2) 120ms;
+}
+.sidebar nav a svg { flex: none; opacity: 0.8; }
+.sidebar nav a:hover { background: var(--surface-2); color: var(--fg); text-decoration: none; }
+.sidebar nav a[aria-current="page"] {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+.sidebar nav a[aria-current="page"] svg { opacity: 1; }
+
+.sidebar .spacer { flex: 1; }
+
+.sidebar .build {
+  padding: var(--size-2) var(--size-3);
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------- topbar */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--size-3);
+  flex-wrap: wrap;
+  padding: var(--size-3) var(--size-6);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.topbar h1 { margin: 0; font-size: 16px; }
+.topbar .meta {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2);
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.topbar .meta label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+.content { padding: var(--size-6); }
+.content.narrow { max-width: 1100px; }
+
+/* -------------------------------------------------------------- panels */
+
+.grid {
+  display: grid;
+  gap: var(--size-5);
+  /* 400px, not 360: the certificate table needs Subject + Provisioner + expiry
+     + days-left visible without scrolling the panel, and that is the widest
+     thing on the page. */
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+}
+
+.panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3);
+  overflow: hidden;
+}
+.panel.wide { grid-column: 1 / -1; }
+.panel.spaced { margin-top: var(--size-5); }
+.chips.wide { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+
+.panel > h2,
+.panel > summary {
+  margin: 0;
+  padding: var(--size-3) var(--size-4);
+  font-size: 13.5px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--size-3);
+  background: var(--surface-1);
+}
+.panel > summary { cursor: pointer; list-style: none; user-select: none; }
+.panel > summary::-webkit-details-marker { display: none; }
+.panel > summary .caret { display: inline-block; color: var(--fg-dim); transition: transform var(--ease-3) 150ms; }
+details.panel:not([open]) > summary { border-bottom: none; }
+details.panel:not([open]) > summary .caret { transform: rotate(-90deg); }
+
+/* Tables of certificates and containers are wider than a narrow panel column.
+   Scrolling inside the panel keeps the page itself from scrolling sideways. */
+.panel .body { padding: var(--size-3) var(--size-4); overflow-x: auto; }
+.panel.pad { padding: var(--size-4); }
+
+/* ------------------------------------------------------- pills, chips */
+
+.state {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: var(--radius-round);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.state.ok { background: var(--ok-bg); color: var(--ok); }
+.state.unavailable, .state.bad { background: var(--bad-bg); color: var(--bad); }
+.state.warn { background: var(--warn-bg); color: var(--warn); }
+.state.disabled, .state.off { background: var(--surface-3); color: var(--fg-dim); }
+
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-round);
+  white-space: nowrap;
+}
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.badge.off { background: var(--surface-3); color: var(--fg-dim); }
+.badge.accent { background: var(--accent-bg); color: var(--accent); }
+
+/* A grid rather than flex-wrap: the counters line up across panels instead of
+   leaving one orphan chip on a second row. */
+.chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  gap: var(--size-2);
+  margin-bottom: var(--size-3);
+}
+.chip {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  padding: var(--size-2) var(--size-3);
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip b {
+  display: block;
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+.chip.ok b { color: var(--ok); }
+.chip.warn b { color: var(--warn); }
+.chip.bad b { color: var(--bad); }
+
+/* ------------------------------------------------------------- tables */
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--fg-muted); font-weight: 600; font-size: 12px; }
+tbody tr:hover td, table tr:hover td { background: var(--surface-3); }
+tr:last-child td { border-bottom: none; }
+
+.num { text-align: right; }
+
+.mono { font-family: var(--font-mono); font-size: 12px; }
+/* Monospace cells are identifiers, dates, and paths: breaking them mid-token
+   costs more than a horizontal scrollbar on the panel. .san opts back out,
+   because a SAN list is meant to wrap. */
+td.mono, th.mono { white-space: nowrap; }
+td.mono.san, .san { white-space: normal; }
+.note { color: var(--fg-muted); font-size: 13px; }
+.note.err { color: var(--bad); word-break: break-word; }
+.note.tight { margin: 0 0 var(--size-2); }
+.dim { color: var(--fg-dim); }
+.san { color: var(--fg-dim); font-size: 11px; word-break: break-all; }
+
+/* A wrapped list of short identifiers - dns_names, tags. Long enough to be a
+   list, too short each to be table rows. */
+.taglist { display: flex; flex-wrap: wrap; gap: 5px; }
+.taglist span {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  padding: 1px 7px;
+}
+
+/* ------------------------------------------------------ service cards */
+
+.cards {
+  display: grid;
+  gap: var(--size-3);
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+
+/* The card is a div, not an anchor: it carries a Restart button, and a button
+   inside an anchor is invalid markup with two click targets over the same
+   pixels. The service name is the link. */
+.svccard {
+  display: block;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3);
+  padding: var(--size-3);
+  color: inherit;
+  transition: border-color var(--ease-2) 120ms;
+}
+.svccard:hover { border-color: var(--border-strong); }
+.svccard .head { display: flex; align-items: center; gap: var(--size-2); margin-bottom: var(--size-2); }
+.svccard .name { font-weight: 620; font-size: 14px; color: var(--fg); }
+a.name:hover { color: var(--accent); text-decoration: none; }
+.svccard .head .state { margin-left: auto; }
+.svccard dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px var(--size-2); font-size: 12px; }
+.svccard dt { color: var(--fg-dim); }
+.svccard dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cardactions { display: flex; gap: var(--size-2); margin-top: var(--size-3); }
+
+/* A value with its copy (and, for secrets, reveal) buttons. */
+.copyrow { display: flex; align-items: center; gap: 4px; }
+.copyrow .val { overflow: hidden; text-overflow: ellipsis; }
+
+/* Cosmetic only - the value is in the DOM and the README says lab-only. What
+   this prevents is a dashboard left open on a projector. */
+.masked { color: transparent; text-shadow: 0 0 7px var(--fg-muted); user-select: none; }
+
+details.sub { margin-top: var(--size-3); }
+details.sub > summary { cursor: pointer; list-style-position: outside; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--size-3); margin: var(--size-2) 0 0; font-size: 12px; }
+.kv dt { color: var(--fg-dim); }
+.kv dd { margin: 0; word-break: break-all; }
+
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--fg-dim); }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.bad { background: var(--bad); }
+
+/* ---------------------------------------------------------- bars, logs */
+
+.bar { background: var(--surface-3); border-radius: var(--radius-1); height: 8px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--ok); }
+.bar span.warn { background: var(--warn); }
+.bar span.bad { background: var(--bad); }
+/* Inline in a table cell, under the path it measures. */
+.bar.thin { display: block; height: 4px; margin-top: 3px; max-width: 220px; }
+.bar.thin span { background: var(--accent-dim); }
+
+.errlist { margin: 0; padding: 0; list-style: none; }
+.errlist li { padding: 7px 0; border-bottom: 1px solid var(--border); }
+.errlist li:last-child { border-bottom: none; }
+.errlist .src { color: var(--accent); font-size: 12px; }
+.errlist .msg { display: block; margin-top: 2px; word-break: break-word; }
+
+pre.log {
+  background: #070a0f;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3);
+  padding: var(--size-3);
+  margin: 0;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+pre.log.viewer { max-height: 70vh; min-height: 220px; }
+pre.log .step { color: var(--accent); }
+pre.log .fail { color: var(--bad); }
+pre.log .done { color: var(--ok); }
+
+/* ----------------------------------------------------- forms, buttons */
+
+button, .btn {
+  background: var(--surface-3);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-2);
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--ease-2) 120ms, background var(--ease-2) 120ms;
+}
+button:hover:enabled, .btn:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+button:disabled { color: var(--fg-dim); cursor: default; opacity: 0.65; }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 650;
+}
+button.primary:hover:enabled { background: #6ba0ff; border-color: #6ba0ff; color: var(--accent-fg); }
+button.danger:hover:enabled { border-color: var(--bad); color: var(--bad); }
+
+button.act, .btn.act { padding: 3px 10px; font-size: 12px; border-color: var(--border); }
+button.act.ghost { border-color: transparent; background: transparent; color: var(--fg-dim); padding: 2px 6px; }
+button.act.ghost:hover:enabled { border-color: var(--border-strong); color: var(--accent); }
+
+input[type=text], input[type=password], input[type=number], input[type=email], textarea, select {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-2);
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  width: 100%;
+}
+textarea { font-family: var(--font-mono); font-size: 12px; line-height: 1.5; resize: vertical; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-dim); outline-offset: -1px; border-color: var(--accent); }
+input[type=checkbox] { accent-color: var(--accent); }
+
+.actions { display: flex; gap: var(--size-3); align-items: center; flex-wrap: wrap; }
+/* Inputs default to full width for forms; in an action row they size to content. */
+.actions select, .actions input[type=text], .actions input[type=number] { width: auto; }
+.actions.spaced-top { margin-top: var(--size-4); }
+
+.logtitle { margin: var(--size-3) 0 var(--size-2); font-size: 12px; color: var(--fg-muted); }
+.logtitle:first-child { margin-top: 0; }
+
+/* --------------------------------------------------------------- login */
+
+.centered {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--size-5);
+}
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3);
+  padding: var(--size-6);
+  width: min(400px, 100%);
+}
+.card h1 { margin: 0 0 var(--size-2); font-size: 17px; }
+
+/* ---------------------------------------------------------- responsive */
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar nav { display: flex; flex-wrap: wrap; gap: 2px; }
+  .navgroup { display: none; }
+  .content, .topbar { padding-left: var(--size-4); padding-right: var(--size-4); }
+}
+
+/* ------------------------------------------------------- stacked form */
+
+/* Label above input, one per row. Used by the depot fetch form, where every
+   field needs a sentence of explanation more than it needs to be compact. */
+.formgrid { display: grid; gap: var(--size-3); max-width: 720px; }
+.formgrid label { display: grid; gap: 4px; font-size: 12px; color: var(--fg-muted); }

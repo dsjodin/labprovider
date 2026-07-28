@@ -1,0 +1,57 @@
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/wildcard.crt
+        keyFile: /certs/wildcard.key
+
+http:
+  middlewares:
+    dashboard-auth:
+      basicAuth:
+        usersFile: /usersfile
+
+  routers:
+    dashboard:
+      rule: "Host(`traefik.sddc.lab`)"
+      entryPoints:
+        - websecure
+      service: api@internal
+      middlewares:
+        - dashboard-auth
+      tls: {}
+    control-plane:
+      rule: "Host(`dashboard.sddc.lab`)"
+      entryPoints:
+        - websecure
+      service: control-plane
+      tls: {}
+    certsrv:
+      rule: "Host(`certsrv.sddc.lab`)"
+      entryPoints:
+        - websecure
+      service: certsrv
+      tls: {}
+    # With DHCP on, Technitium runs on the host network and carries no docker
+    # labels for the label provider to discover, so its console is routed here
+    # the same way the control plane is.
+    technitium:
+      rule: "Host(`dns.sddc.lab`)"
+      entryPoints:
+        - websecure
+      service: technitium
+      tls: {}
+
+  services:
+    control-plane:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.12.121:8445"
+    certsrv:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.12.121:8446"
+    technitium:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.12.121:5380"

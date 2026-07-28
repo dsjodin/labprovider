@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "netbox"
+      POSTGRES_USER: "netbox"
+      POSTGRES_PASSWORD: "nbpg"
+    volumes:
+      - /opt/labprovider/netbox/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netbox -d netbox"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - yes
+      - --requirepass
+      - nbredis
+    volumes:
+      - /opt/labprovider/netbox/redis:/data
+
+  netbox:
+    image: docker.io/netboxcommunity/netbox:v4.6.2
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      ALLOWED_HOSTS: "netbox.sddc.lab"
+      CSRF_TRUSTED_ORIGINS: "https://netbox.sddc.lab"
+      DB_HOST: postgres
+      DB_NAME: "netbox"
+      DB_USER: "netbox"
+      DB_PASSWORD: "nbpg"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "nbredis"
+      REDIS_DATABASE: "0"
+      REDIS_CACHE_HOST: redis
+      REDIS_CACHE_PORT: "6379"
+      REDIS_CACHE_PASSWORD: "nbredis"
+      REDIS_CACHE_DATABASE: "1"
+      SECRET_KEY: "sk"
+      API_TOKEN_PEPPER_1: "pepper"
+      SUPERUSER_NAME: "admin"
+      SUPERUSER_EMAIL: "admin@sddc.lab"
+      SUPERUSER_PASSWORD: "nbsu"
+      SKIP_SUPERUSER: "false"
+    # TLS is terminated by Traefik; NetBox serves plain HTTP on 8080, fronted at
+    # https://netbox.sddc.lab. The host port is kept on the loopback for
+    # deploy-time readiness and for the dns-sync/dashboard consumers.
+    ports:
+      - "127.0.0.1:8444:8080"
+    volumes:
+      - /opt/labprovider/netbox/media:/opt/netbox/netbox/media
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.netbox.rule=Host(`netbox.sddc.lab`)"
+      - "traefik.http.routers.netbox.entrypoints=websecure"
+      - "traefik.http.routers.netbox.tls=true"
+      - "traefik.http.services.netbox.loadbalancer.server.port=8080"
+
+networks:
+  proxy:
+    external: true

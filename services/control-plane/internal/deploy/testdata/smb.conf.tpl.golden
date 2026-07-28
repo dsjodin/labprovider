@@ -1,0 +1,16 @@
+[global]
+   workgroup = WORKGROUP
+   server string = labprovider
+   security = user
+   map to guest = never
+   server min protocol = SMB2
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   disable spoolss = yes
+
+[labshare]
+   path = /shares/labshare
+   valid users = labuser
+   read only = no
+   browseable = yes

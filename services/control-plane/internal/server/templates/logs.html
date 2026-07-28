@@ -1,0 +1,95 @@
+{{ define "content" }}
+<section class="panel wide">
+  <h2>Container logs {{ template "state" .Status }}</h2>
+  <div class="body">
+  {{- if not .Status.OK }}{{ template "unavail" .Status }}
+  {{- else if not .Containers }}<p class="note">No containers match CONTROL_PLANE_CONTAINER_FILTERS.</p>
+  {{- else }}
+    <div class="actions">
+      <select id="container">
+        {{- range .Containers }}
+        <option value="{{ .Name }}"{{ if eq .Name $.Selected }} selected{{ end }}>{{ .Name }}{{ if ne .State "running" }} ({{ .State }}){{ end }}</option>
+        {{- end }}
+      </select>
+      <select id="tail">
+        {{- range .TailSizes }}
+        <option value="{{ . }}"{{ if eq . $.Tail }} selected{{ end }}>last {{ . }}</option>
+        {{- end }}
+      </select>
+      <label><input type="checkbox" id="errorsonly"> errors only</label>
+      <label><input type="checkbox" id="wrap" checked> wrap</label>
+      <button onclick="load()">Refresh</button>
+      <a class="btn" id="download">Download</a>
+      <span class="note" id="logstatus"></span>
+    </div>
+    <pre class="log viewer" id="out">Loading...</pre>
+    <p class="note">A tail, not a stream. Reload for newer lines; the tail is capped at {{ .MaxTail }}.</p>
+  {{- end }}
+  </div>
+</section>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+const out = document.getElementById('out');
+const picker = document.getElementById('container');
+const tail = document.getElementById('tail');
+const errorsOnly = document.getElementById('errorsonly');
+const wrap = document.getElementById('wrap');
+const logstatus = document.getElementById('logstatus');
+const download = document.getElementById('download');
+
+// A display filter, not internal/logs.Extract: that classifies structured
+// levels for the errors panel, this hides lines while you read.
+const ERROR_RE = /error|fatal|critical|panic/i;
+
+function apiURL(format) {
+  const q = new URLSearchParams({ tail: tail.value });
+  if (format) q.set('format', format);
+  return '/api/logs/' + encodeURIComponent(picker.value) + '?' + q.toString();
+}
+
+function render(lines) {
+  const shown = errorsOnly.checked ? lines.filter(l => ERROR_RE.test(l)) : lines;
+  out.textContent = shown.length ? shown.join('\n') : (lines.length ? 'No matching lines.' : 'No output.');
+  out.scrollTop = out.scrollHeight;
+}
+
+let current = [];
+
+async function load() {
+  logstatus.className = 'note';
+  logstatus.textContent = 'Loading...';
+  download.href = apiURL('text');
+  try {
+    const resp = await fetch(apiURL(''));
+    // A proxy or a login redirect answers with HTML; report the status rather
+    // than a JSON parse error that says nothing about what happened.
+    const text = await resp.text();
+    let body = {};
+    try { body = JSON.parse(text); } catch (e) { throw new Error('HTTP ' + resp.status); }
+    if (!resp.ok) throw new Error(body.error || ('HTTP ' + resp.status));
+    current = body.lines || [];
+    render(current);
+    logstatus.textContent = current.length + ' lines';
+  } catch (e) {
+    logstatus.className = 'note err';
+    logstatus.textContent = e.message;
+    out.textContent = '';
+  }
+}
+
+picker.addEventListener('change', () => {
+  const url = new URL(location.href);
+  url.searchParams.set('container', picker.value);
+  history.replaceState(null, '', url);
+  load();
+});
+tail.addEventListener('change', load);
+errorsOnly.addEventListener('change', () => render(current));
+wrap.addEventListener('change', () => {
+  out.style.whiteSpace = wrap.checked ? 'pre-wrap' : 'pre';
+});
+load();
+</script>
+{{ end }}

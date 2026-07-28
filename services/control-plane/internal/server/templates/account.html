@@ -1,0 +1,93 @@
+{{ define "content" }}
+<div class="grid">
+  <section class="panel">
+    <h2>Signed in as <span id="who" class="mono">...</span></h2>
+    <div class="body">
+      <p class="note" style="margin-top:0">Sessions are held in memory, so restarting the control
+        plane signs everyone out. Changing your password ends your other sessions.</p>
+
+      <label class="field" for="current">Current password</label>
+      <input id="current" type="password" autocomplete="current-password">
+
+      <label class="field" for="next">New password</label>
+      <input id="next" type="password" autocomplete="new-password">
+
+      <label class="field" for="confirm">Confirm new password</label>
+      <input id="confirm" type="password" autocomplete="new-password">
+
+      <div class="actions" style="margin-top:var(--size-4)">
+        <button class="primary" onclick="changePassword()">Change password</button>
+        <span id="status"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Operators</h2>
+    <div class="body">
+      <p class="note" style="margin-top:0">Accounts in <span class="mono">users.json</span> under the
+        control-plane directory.</p>
+      <ul id="operators" class="errlist"></ul>
+    </div>
+  </section>
+</div>
+
+<style>
+  .field { display: block; font-size: 12px; color: var(--fg-muted); margin: var(--size-3) 0 5px; }
+  #status { font-size: 13px; }
+  #status.bad { color: var(--bad); }
+  #status.ok { color: var(--ok); }
+  #operators li { font-family: var(--font-mono); font-size: 12px; }
+</style>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+const statusEl = document.getElementById('status');
+let minPassword = 12;
+
+async function load() {
+  const res = await fetch('/api/account');
+  if (!res.ok) { location.href = '/login'; return; }
+  const data = await res.json();
+  document.getElementById('who').textContent = data.username;
+  minPassword = data.min_password;
+  const list = document.getElementById('operators');
+  list.textContent = '';
+  (data.operators || []).forEach(name => {
+    const li = document.createElement('li');
+    li.textContent = name;
+    list.appendChild(li);
+  });
+}
+
+async function changePassword() {
+  const current = document.getElementById('current').value;
+  const next = document.getElementById('next').value;
+  const confirm = document.getElementById('confirm').value;
+  statusEl.className = '';
+  if (next !== confirm) {
+    statusEl.className = 'bad'; statusEl.textContent = 'The new passwords do not match.'; return;
+  }
+  if (next.length < minPassword) {
+    statusEl.className = 'bad';
+    statusEl.textContent = 'The new password must be at least ' + minPassword + ' characters.';
+    return;
+  }
+  statusEl.textContent = 'Saving...';
+  const res = await fetch('/api/account/password', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ current, new: next }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    statusEl.className = 'bad'; statusEl.textContent = data.error || 'Change failed.'; return;
+  }
+  statusEl.className = 'ok'; statusEl.textContent = 'Password changed.';
+  ['current', 'next', 'confirm'].forEach(id => document.getElementById(id).value = '');
+}
+
+load();
+</script>
+{{ end }}

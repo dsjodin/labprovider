@@ -1,0 +1,17 @@
+services:
+  technitium:
+    image: docker.io/technitium/dns-server:15.3.0
+    restart: unless-stopped
+    environment:
+      DNS_SERVER_DOMAIN: "dns.sddc.lab"
+    # DHCP requires the host network. A DHCPDISCOVER is a broadcast to
+    # 255.255.255.255:67 and docker's published-port proxy does not deliver it,
+    # so a bridged container with 67/udp published answers nothing. Here
+    # Technitium binds 53, 67, 5380 and 53443 on the host
+    # itself, so nothing is published - including the cleartext console, which
+    # is no longer loopback-only. Traefik fronts it through the file provider
+    # rather than container labels, the same wiring the control plane uses.
+    network_mode: host
+    volumes:
+      - /opt/labprovider/technitium/data:/etc/dns
+      - /opt/labprovider/technitium/certs:/etc/labprovider/technitium-certs:ro

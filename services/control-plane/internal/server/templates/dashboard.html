@@ -1,0 +1,272 @@
+{{ define "topbar" }}
+<h1>Dashboard</h1>
+<span class="meta">
+  {{- if .FQDN }}<span class="mono">{{ .FQDN }}</span>{{ end }}
+  <span class="dim">generated <span id="generated">{{ .GeneratedAt }}</span></span>
+  <span id="live" class="badge ok">live</span>
+  <label><input type="checkbox" id="autorefresh" checked> auto-refresh</label>
+</span>
+{{ end }}
+
+{{ define "content" }}
+<div class="grid">
+
+  {{/* ---- Access (web UIs + lab credentials) ---- */}}
+  <details class="panel wide" open>
+    <summary><span><span class="caret">&#9662;</span> Access</span> {{ template "state" .Access.Status }}</summary>
+    <div class="body">
+    {{- if .Access.Status.OK }}
+      {{- if .Access.CAReady }}
+      <p class="note tight">
+        <a href="/api/ca/root">Download root CA (root_ca.crt)</a>
+        &middot; add it to a lab host's trust store so step-ca certificates validate.
+        Linux: copy to <span class="mono">/usr/local/share/ca-certificates/</span> then
+        <span class="mono">update-ca-certificates</span>.
+        Windows: import into <span class="mono">Trusted Root Certification Authorities</span>.
+      </p>
+      {{- end }}
+      {{- if .Access.Entries }}
+      <div class="cards">
+        {{- range .Access.Entries }}{{ template "accesscard" . }}{{ end }}
+      </div>
+      <p class="note">Credentials are shown in cleartext from the managed config - lab use only.</p>
+      <p class="note tight">
+        <a href="/api/backup">Download backup bundle</a>
+        &middot; the state nothing can recreate: the configuration, the generated secrets,
+        the operator accounts, and the CA key material. Service data (Postgres volumes,
+        registry blobs, depot bundles) is not in it and is not meant to be.
+      </p>
+      {{- else }}<p class="note">No web UIs configured yet.</p>{{ end }}
+    {{- else }}{{ template "unavail" .Access.Status }}{{ end }}
+    </div>
+  </details>
+
+  {{/* ---- Certificates. Stays a table: four homogeneous columns over a list
+       that grows to dozens of rows is what tables are for. ---- */}}
+  <section class="panel">
+    <h2>Certificates (step-ca) {{ template "state" .Certs.Status }}</h2>
+    <div class="body">
+    {{- if .Certs.Status.OK }}
+      {{- with .Certs.Summary }}
+      <div class="chips">
+        <span class="chip ok"><b>{{ .ActiveOK }}</b> active</span>
+        <span class="chip warn"><b>{{ .WarnCount }}</b> expiring</span>
+        <span class="chip bad"><b>{{ .ExpiredCount }}</b> expired</span>
+        <span class="chip"><b>{{ .RevokedCount }}</b> revoked</span>
+      </div>
+      {{- if .Certs }}
+      <table>
+        <tr><th>Subject</th><th>Provisioner</th><th>Not after</th><th>Days</th></tr>
+        {{- range .Certs }}
+        <tr>
+          <td>{{ .CommonName }}{{ if .SANs }}<div class="san">{{ join ", " .SANs }}</div>{{ end }}</td>
+          <td>{{ .Provisioner }}</td>
+          <td class="mono">{{ .NotAfter.Format "2006-01-02" }}</td>
+          <td>
+            {{- if .Revoked }}<span class="badge bad">revoked</span>
+            {{- else if .Expired }}<span class="badge bad">expired</span>
+            {{- else if .Warn }}<span class="badge warn">{{ .DaysToExpiry }}d</span>
+            {{- else }}<span class="badge ok">{{ .DaysToExpiry }}d</span>{{ end }}
+          </td>
+        </tr>
+        {{- end }}
+      </table>
+      {{- else }}<p class="note">No certificates found.</p>{{ end }}
+      {{- end }}
+    {{- else }}{{ template "unavail" .Certs.Status }}{{ end }}
+    </div>
+  </section>
+
+  {{/* ---- DNS ---- */}}
+  <section class="panel">
+    <h2>DNS (Technitium) {{ template "state" .DNS.Status }}</h2>
+    <div class="body">
+    {{- if .DNS.Status.OK }}
+      {{- with .DNS.Overview }}
+      <div class="chips">
+        <span class="chip"><b>{{ len .Zones }}</b> zones</span>
+        <span class="chip">forwarder<b>{{ if .Forwarders }}{{ join ", " .Forwarders }}{{ else }}none{{ end }}</b></span>
+        <span class="chip {{ if .TLSReachable }}ok{{ else }}bad{{ end }}">TLS :{{ .TLSPort }}
+          <b>{{ if .TLSReachable }}up{{ else }}down{{ end }}</b></span>
+      </div>
+      {{- if .Zones }}
+      <table>
+        <tr><th>Zone</th><th>Type</th><th class="num">Records</th></tr>
+        {{- range .Zones }}
+        <tr><td class="mono">{{ .Name }}</td><td>{{ .Type }}</td><td class="num">{{ .RecordCount }}</td></tr>
+        {{- end }}
+      </table>
+      {{- else }}<p class="note">No user zones.</p>{{ end }}
+      {{- end }}
+    {{- else }}{{ template "unavail" .DNS.Status }}{{ end }}
+    </div>
+  </section>
+
+  {{/* ---- IPAM ---- */}}
+  <section class="panel">
+    <h2>IPAM (NetBox) {{ template "state" .IPAM.Status }}</h2>
+    <div class="body">
+    {{- if .IPAM.Status.OK }}
+      {{- with .IPAM.Overview }}
+      <div class="chips">
+        <span class="chip"><b>{{ .PrefixCount }}</b> prefixes</span>
+        <span class="chip"><b>{{ .IPCount }}</b> IP addresses</span>
+        <span class="chip"><b>{{ len .DNSNames }}</b> DNS names</span>
+      </div>
+      {{- if .DNSNames }}
+      <div class="taglist">
+        {{- range .DNSNames }}<span class="mono">{{ . }}</span>{{ end }}
+      </div>
+      {{- else }}<p class="note">No dns_name values set.</p>{{ end }}
+      {{- end }}
+    {{- else }}{{ template "unavail" .IPAM.Status }}{{ end }}
+    </div>
+  </section>
+
+  {{/* ---- Disk ---- */}}
+  <section class="panel">
+    <h2>Disk {{ template "state" .Disk.Status }}</h2>
+    <div class="body">
+    {{- if .Disk.Status.OK }}
+      {{- $max := .Disk.MaxDirBytes }}
+      {{- with .Disk.Overview }}
+      <div class="chips">
+        <span class="chip"><b>{{ bytes .Filesystem.FreeBytes }}</b> free</span>
+        <span class="chip"><b>{{ bytes .Filesystem.TotalBytes }}</b> total</span>
+        <span class="chip {{ if ge .Filesystem.UsedPercent 90 }}bad{{ else if ge .Filesystem.UsedPercent 75 }}warn{{ end }}"><b>{{ .Filesystem.UsedPercent }}%</b> used</span>
+      </div>
+      <div class="bar" title="{{ bytes .Filesystem.UsedBytes }} of {{ bytes .Filesystem.TotalBytes }} used on {{ .Filesystem.Path }}">
+        <span class="{{ if ge .Filesystem.UsedPercent 90 }}bad{{ else if ge .Filesystem.UsedPercent 75 }}warn{{ end }}"
+              style="width:{{ .Filesystem.UsedPercent }}%"></span>
+      </div>
+      <p class="note mono tight">{{ .Filesystem.Path }}</p>
+      {{- if .Dirs }}
+      <table>
+        <tr><th>Service</th><th>Data directory</th><th class="num">Size</th></tr>
+        {{- range .Dirs }}
+        <tr>
+          <td>{{ .Service }}</td>
+          <td>
+            <span class="mono san">{{ .Path }}</span>
+            <span class="bar thin"><span style="width:{{ pctOf .Bytes $max }}%"></span></span>
+          </td>
+          <td class="mono num">{{ bytes .Bytes }}</td>
+        </tr>
+        {{- end }}
+      </table>
+      <p class="note">Bars are relative to the largest directory.</p>
+      {{- end }}
+      {{- if .Measuring }}<p class="note">Measuring directory sizes; refresh in a moment.</p>
+      {{- else if .MeasuredAt }}<p class="note">Sizes measured {{ .MeasuredAt }}.</p>{{ end }}
+      {{- end }}
+    {{- else }}{{ template "unavail" .Disk.Status }}{{ end }}
+    </div>
+  </section>
+
+  {{/* ---- Services. A summary: counts, then only what needs attention. The
+       whole list lives at /services. ---- */}}
+  <section class="panel wide">
+    <h2>Services {{ template "state" .Services.Status }}</h2>
+    <div class="body">
+    {{- if .Services.Status.OK }}
+      {{- if .Services.Services }}
+      <div class="chips">
+        <span class="chip ok"><b>{{ .Services.CountRunning }}</b> running</span>
+        <span class="chip warn"><b>{{ .Services.CountDegraded }}</b> degraded</span>
+        <span class="chip bad"><b>{{ .Services.CountStopped }}</b> stopped</span>
+        <span class="chip"><b>{{ .Services.CountNotDeployed }}</b> not deployed</span>
+      </div>
+      {{- with .Services.Attention }}
+      <div class="cards">
+        {{- range . }}{{ template "svccard" . }}{{ end }}
+      </div>
+      {{- else }}
+      <p class="note">Nothing needs attention: every deployed service is running.</p>
+      {{- end }}
+      <p class="note"><a href="/services">View all {{ len .Services.Services }} services</a></p>
+      {{- else if .Services.Containers }}
+      {{/* Read-only dashboard deployment: no registry, so the Docker view is all there is. */}}
+      {{ template "containers" .Services.Containers }}
+      {{- else }}<p class="note">No services registered and no matching containers.</p>{{ end }}
+      {{- if and .Services.Services .Services.Unmanaged }}
+      <p class="note tight">Containers matching CONTROL_PLANE_CONTAINER_FILTERS that belong to no labprovider service:</p>
+      {{ template "containers" .Services.Unmanaged }}
+      {{- end }}
+    {{- else }}{{ template "unavail" .Services.Status }}{{ end }}
+    </div>
+  </section>
+
+  {{/* ---- Recent errors ---- */}}
+  <section class="panel wide">
+    <h2>Recent errors {{ template "state" .Errors.Status }}</h2>
+    <div class="body">
+    {{- if .Errors.Status.OK }}
+      {{- if .Errors.Entries }}
+      <ul class="errlist">
+        {{- range .Errors.Entries }}
+        <li>
+          <a class="src" href="/logs?container={{ .Container }}">{{ .Container }}</a>
+          {{- if .Time }} <span class="note mono">{{ .Time }}</span>{{ end }}
+          <span class="badge bad">{{ .Level }}</span>
+          <span class="msg mono">{{ if .Message }}{{ .Message }}{{ else }}{{ .Raw }}{{ end }}</span>
+        </li>
+        {{- end }}
+      </ul>
+      {{- else }}<p class="note">No error-level log lines in the recent tail.</p>{{ end }}
+    {{- else }}{{ template "unavail" .Errors.Status }}{{ end }}
+    </div>
+  </section>
+
+</div>
+{{ end }}
+
+{{ define "scripts" }}
+{{ template "svcscripts" }}
+<script>
+// Auto-refresh. The page re-fetches itself and swaps the content element rather
+// than repainting from /api/state: the panels have exactly one renderer that
+// way, and it stays the Go template. Panel open/closed state is restored by
+// position because the panels never reorder.
+const REFRESH_MS = 30000;
+const live = document.getElementById('live');
+const toggle = document.getElementById('autorefresh');
+
+toggle.checked = localStorage.getItem('labprovider.autorefresh') !== 'off';
+toggle.addEventListener('change', () => {
+  localStorage.setItem('labprovider.autorefresh', toggle.checked ? 'on' : 'off');
+  setLive(toggle.checked ? 'live' : 'paused', toggle.checked ? 'ok' : 'off');
+});
+
+function setLive(text, cls) {
+  live.textContent = text;
+  live.className = 'badge ' + cls;
+}
+
+async function refresh() {
+  if (!toggle.checked || document.hidden) return;
+  try {
+    const resp = await fetch('/', { headers: { 'Accept': 'text/html' }, redirect: 'follow' });
+    if (resp.status === 401 || new URL(resp.url, location.href).pathname === '/login') {
+      location.href = '/login';
+      return;
+    }
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
+    const next = doc.querySelector('.content');
+    if (!next) throw new Error('no main element');
+    const open = [...document.querySelectorAll('.content details')].map(d => d.open);
+    document.querySelector('.content').replaceWith(next);
+    document.querySelectorAll('.content details').forEach((d, i) => {
+      if (i < open.length) d.open = open[i];
+    });
+    const stamp = doc.getElementById('generated');
+    if (stamp) document.getElementById('generated').textContent = stamp.textContent;
+    setLive('live', 'ok');
+  } catch (e) {
+    // A failed refresh means the values on screen are older than they claim.
+    setLive('stale', 'bad');
+  }
+}
+setInterval(refresh, REFRESH_MS);
+</script>
+{{ end }}

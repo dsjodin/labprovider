@@ -1,0 +1,29 @@
+services:
+  mailpit:
+    image: docker.io/axllent/mailpit:v1.21.8
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: "/data/mailpit.db"
+    # TLS is terminated by Traefik; the web UI serves plain HTTP on 8025 and is
+    # fronted at https://mail.sddc.lab. The UI host port is kept on the
+    # loopback for deploy-time readiness only. SMTP is published on all
+    # interfaces so lab services can send mail to it.
+    ports:
+      - "1025:1025"
+      - "127.0.0.1:8025:8025"
+    volumes:
+      - /opt/labprovider/mailpit:/data
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.mailpit.rule=Host(`mail.sddc.lab`)"
+      - "traefik.http.routers.mailpit.entrypoints=websecure"
+      - "traefik.http.routers.mailpit.tls=true"
+      - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+
+networks:
+  proxy:
+    external: true

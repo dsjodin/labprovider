@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/control-plane/go.mod
+          cache-dependency-path: |
+            services/control-plane/go.sum
+            services/dns-sync/go.sum
+
+      # go.work spans both modules. Note the pattern: ./... from the workspace
+      # root does not cross module boundaries, so the module path is what
+      # reaches services/dns-sync.
+      - run: go build github.com/dsjodin/labprovider/services/...
+      - run: go vet github.com/dsjodin/labprovider/services/...
+      # -race, not a plain test run: the depot transfer's progress counter was
+      # read by the status endpoint while the transfer goroutine wrote it, and
+      # the repository's own tests caught it the moment the detector was on.
+      - run: go test -race github.com/dsjodin/labprovider/services/...
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l services/)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+  # The dependency set is small and moves rarely, which is exactly the situation
+  # where "nothing here is known-vulnerable" quietly becomes an assertion nobody
+  # is checking. govulncheck reports only vulnerabilities in code paths the
+  # binaries actually reach.
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/control-plane/go.mod
+          cache-dependency-path: |
+            services/control-plane/go.sum
+            services/dns-sync/go.sum
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
+        working-directory: services/control-plane
+      - run: govulncheck ./...
+        working-directory: services/dns-sync
+
+  # bindLoopbackPublish is a regex over a file goharbor/prepare generates, and
+  # the golden tests pin harbor.yml and the override rather than the compose
+  # file that is actually run. Without this, a HARBOR_PREPARE_IMAGE bump fails
+  # at deploy time - on the operator's lab host, minutes into an eight-container
+  # start, on a change CI called green. Runners have Docker, so run the real
+  # prepare and check the rewrite still matches its output.
+  harbor-prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/control-plane/go.mod
+          cache-dependency-path: services/control-plane/go.sum
+      - run: go test -run TestHarborPrepareOutputIsStillRewritable -v ./internal/deploy/
+        working-directory: services/control-plane
+        env:
+          LABPROVIDER_HARBOR_PREPARE_TEST: "1"
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # SC1091 is excluded: both scripts source /etc/os-release, which is a host
+      # file and cannot be resolved from the repository.
+      - run: shellcheck -e SC1091 install.sh reset.sh

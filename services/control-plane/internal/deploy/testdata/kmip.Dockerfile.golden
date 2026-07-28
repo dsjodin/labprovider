@@ -1,0 +1,10 @@
+FROM docker.io/library/python:3.12-alpine
+# PyKMIP publishes no official image, so build one locally like chrony and
+# rsyslog. sqlite is PyKMIP's default managed-object store; the build deps are
+# needed for the cryptography wheel on musl.
+RUN apk add --no-cache --virtual .build gcc musl-dev libffi-dev openssl-dev cargo \
+ && pip install --no-cache-dir "pykmip==0.10.0" \
+ && apk del .build
+# The server binds 0.0.0.0:5696 and reads /etc/pykmip/server.conf. Managed
+# objects live in the data volume so they survive a redeploy.
+CMD ["pykmip-server", "-f", "/etc/pykmip/server.conf"]

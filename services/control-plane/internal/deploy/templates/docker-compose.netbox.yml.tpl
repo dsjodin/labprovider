@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: {{.NETBOX_POSTGRES_IMAGE}}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "{{.NETBOX_POSTGRES_DB}}"
+      POSTGRES_USER: "{{.NETBOX_POSTGRES_USER}}"
+      POSTGRES_PASSWORD: "{{.NETBOX_POSTGRES_PASSWORD}}"
+    volumes:
+      - {{.NETBOX_POSTGRES_DATA_DIR}}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{.NETBOX_POSTGRES_USER}} -d {{.NETBOX_POSTGRES_DB}}"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: {{.NETBOX_REDIS_IMAGE}}
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - yes
+      - --requirepass
+      - {{.NETBOX_REDIS_PASSWORD}}
+    volumes:
+      - {{.NETBOX_REDIS_DATA_DIR}}:/data
+
+  netbox:
+    image: {{.NETBOX_IMAGE}}
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      ALLOWED_HOSTS: "{{.NETBOX_ALLOWED_HOSTS}}"
+      CSRF_TRUSTED_ORIGINS: "{{.NETBOX_CSRF_TRUSTED_ORIGINS}}"
+      DB_HOST: postgres
+      DB_NAME: "{{.NETBOX_POSTGRES_DB}}"
+      DB_USER: "{{.NETBOX_POSTGRES_USER}}"
+      DB_PASSWORD: "{{.NETBOX_POSTGRES_PASSWORD}}"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "{{.NETBOX_REDIS_PASSWORD}}"
+      REDIS_DATABASE: "0"
+      REDIS_CACHE_HOST: redis
+      REDIS_CACHE_PORT: "6379"
+      REDIS_CACHE_PASSWORD: "{{.NETBOX_REDIS_PASSWORD}}"
+      REDIS_CACHE_DATABASE: "1"
+      SECRET_KEY: "{{.NETBOX_SECRET_KEY}}"
+      API_TOKEN_PEPPER_1: "{{.NETBOX_API_TOKEN_PEPPER_1}}"
+      SUPERUSER_NAME: "{{.NETBOX_SUPERUSER_NAME}}"
+      SUPERUSER_EMAIL: "{{.NETBOX_SUPERUSER_EMAIL}}"
+      SUPERUSER_PASSWORD: "{{.NETBOX_SUPERUSER_PASSWORD}}"
+      SKIP_SUPERUSER: "false"
+    # TLS is terminated by Traefik; NetBox serves plain HTTP on 8080, fronted at
+    # https://{{.NETBOX_FQDN}}. The host port is kept on the loopback for
+    # deploy-time readiness and for the dns-sync/dashboard consumers.
+    ports:
+      - "127.0.0.1:{{.NETBOX_PORT}}:8080"
+    volumes:
+      - {{.NETBOX_MEDIA_DIR}}:/opt/netbox/netbox/media
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.netbox.rule=Host(`{{.NETBOX_FQDN}}`)"
+      - "traefik.http.routers.netbox.entrypoints=websecure"
+      - "traefik.http.routers.netbox.tls=true"
+      - "traefik.http.services.netbox.loadbalancer.server.port=8080"
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,176 @@
+{{ define "content" }}
+<div class="grid">
+  <section class="panel wide">
+    <h2>labprovider.env</h2>
+    <div class="body">
+      <p class="note" style="margin-top:0">Edit <span class="mono">labprovider.env</span> below (or download it,
+        fill it out locally, and paste it back). Validate shows every problem at once; Save stores the
+        file on the labprovider host. Deploys always use the last saved version.</p>
+      <textarea id="cfg" spellcheck="false" style="height:58vh"></textarea>
+      <div class="actions" style="margin-top:var(--size-3)">
+        <button class="primary" onclick="save()">Save</button>
+        <button onclick="validateCfg()">Validate</button>
+        <button id="addMissing" onclick="addMissing()" hidden>Add missing variables</button>
+        <a class="btn" href="/api/config?download=1">Download</a>
+        <span id="status"></span>
+      </div>
+      <ul class="issues" id="issues"></ul>
+    </div>
+  </section>
+
+  <section class="panel wide">
+    <h2>External DNS records <span class="badge off">dns.seed, optional</span></h2>
+    <div class="body">
+      <p class="note" style="margin-top:0">One record per line: <span class="mono">&lt;fqdn&gt; &lt;ip&gt;</span> or
+        <span class="mono">&lt;fqdn&gt; &lt;ip/cidr&gt;</span> for VCF nodes, gateways, and other
+        non-labprovider hosts. Imported into NetBox at deploy; NetBox is the source of
+        truth afterwards. Built-in service records are generated automatically - never add them here.
+        Save an empty box to remove the file.</p>
+      <textarea id="seed" spellcheck="false" style="height:20vh"></textarea>
+      <div class="actions" style="margin-top:var(--size-3)">
+        <button class="primary" onclick="saveSeed()">Save records</button>
+        <span id="seedStatus"></span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  #status, #seedStatus { font-size: 13px; }
+  #status.ok, #seedStatus.ok { color: var(--ok); }
+  #status.bad, #seedStatus.bad { color: var(--bad); }
+  ul.issues { margin: var(--size-3) 0 0; padding-left: 18px; font-size: 13px; }
+  ul.issues li { margin: 2px 0; }
+  ul.issues .var { color: var(--warn); font-family: var(--font-mono); }
+  ul.issues button.var {
+    background: none; border: 0; padding: 0; font-size: inherit;
+    cursor: pointer; text-decoration: underline dotted;
+  }
+  ul.issues button.var:hover { color: var(--accent); }
+</style>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+const statusEl = document.getElementById('status');
+const issuesEl = document.getElementById('issues');
+
+async function load() {
+  const res = await fetch('/api/config');
+  document.getElementById('cfg').value = await res.text();
+  const saved = res.headers.get('X-labprovider-Config-Saved') === 'true';
+  statusEl.className = '';
+  statusEl.textContent = saved ? 'Loaded the saved configuration.'
+    : 'No configuration saved yet - this is the example template. Fill it out and save.';
+}
+
+// pendingBlock is the last validate/save response's missing entries, with their
+// example values and comments. Upgrading labprovider adds variables to the
+// example and the save then fails until every one is present; this is the
+// one-click alternative to hand-merging them.
+let pendingBlock = '';
+
+function renderIssues(data) {
+  issuesEl.innerHTML = '';
+  pendingBlock = data.missing_block || '';
+  const btn = document.getElementById('addMissing');
+  btn.hidden = !pendingBlock;
+  btn.textContent = 'Add ' + (data.missing_vars || []).length + ' missing variable(s)';
+  for (const v of data.missing_vars || []) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="var"></span> missing (defined in the example but not here)';
+    li.querySelector('.var').textContent = v;
+    issuesEl.appendChild(li);
+  }
+  for (const i of data.issues || []) {
+    const li = document.createElement('li');
+    li.innerHTML = '<button type="button" class="var jump"></button> <span class="msg"></span>';
+    const jump = li.querySelector('.var');
+    jump.textContent = i.var;
+    jump.title = 'Jump to ' + i.var;
+    jump.addEventListener('click', () => jumpTo(i.var));
+    li.querySelector('.msg').textContent = i.msg;
+    issuesEl.appendChild(li);
+  }
+}
+
+async function validateCfg() {
+  const res = await fetch('/api/config/validate', { method: 'POST', body: document.getElementById('cfg').value });
+  const data = await res.json();
+  renderIssues(data);
+  statusEl.className = data.valid ? 'ok' : 'bad';
+  statusEl.textContent = data.valid ? 'Configuration is valid.'
+    : 'Validation found ' + ((data.issues||[]).length + (data.missing_vars||[]).length) + ' issue(s).';
+}
+
+// jumpTo puts the cursor on a variable's line in the textarea. Validation
+// reports issues below a 58vh box, so fixing issue 14 of 30 otherwise means
+// scrolling between the message and the line it is about.
+function jumpTo(name) {
+  const cfg = document.getElementById('cfg');
+  // Match the assignment at the start of a line, not a mention of the name in
+  // a comment or inside another variable's value.
+  const re = new RegExp('^[ \\t]*' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=', 'm');
+  const m = re.exec(cfg.value);
+  if (!m) return;
+  const start = m.index + m[0].length;
+  const end = cfg.value.indexOf('\n', start);
+  cfg.focus();
+  cfg.setSelectionRange(start, end === -1 ? cfg.value.length : end);
+  // Scroll the line to roughly the middle rather than the very top, so the
+  // variables around it are visible too.
+  const line = cfg.value.slice(0, m.index).split('\n').length - 1;
+  const lineHeight = cfg.scrollHeight / (cfg.value.split('\n').length || 1);
+  cfg.scrollTop = Math.max(0, (line * lineHeight) - (cfg.clientHeight / 2));
+}
+
+// addMissing appends the entries and re-validates, so the operator sees
+// immediately whether anything is left. It appends rather than rewriting: the
+// values already in the box are the operator's, and the example's are not.
+function addMissing() {
+  if (!pendingBlock) return;
+  const cfg = document.getElementById('cfg');
+  const sep = cfg.value.endsWith('\n') ? '' : '\n';
+  cfg.value = cfg.value + sep + pendingBlock;
+  cfg.scrollTop = cfg.scrollHeight;
+  statusEl.className = '';
+  statusEl.textContent = 'Added the missing variables at the end - review their values, then Save.';
+  validateCfg();
+}
+
+async function save() {
+  const res = await fetch('/api/config', { method: 'PUT', body: document.getElementById('cfg').value });
+  const data = await res.json();
+  renderIssues(data);
+  if (res.ok) {
+    statusEl.className = data.valid ? 'ok' : '';
+    statusEl.textContent = data.valid ? 'Saved. Configuration is valid.'
+      : 'Saved, but validation found issues (fix them before deploying).';
+  } else {
+    statusEl.className = 'bad';
+    statusEl.textContent = data.error || 'Save rejected: variables are missing (see below).';
+  }
+}
+
+async function loadSeed() {
+  const res = await fetch('/api/seed');
+  document.getElementById('seed').value = await res.text();
+}
+
+async function saveSeed() {
+  const el = document.getElementById('seedStatus');
+  const res = await fetch('/api/seed', { method: 'PUT', body: document.getElementById('seed').value });
+  const data = await res.json();
+  if (res.ok) {
+    el.className = 'ok';
+    el.textContent = data.removed ? 'Removed dns.seed.' : 'Saved dns.seed.';
+  } else {
+    el.className = 'bad';
+    el.textContent = (data.issues || [data.error]).join('; ');
+  }
+}
+
+load();
+loadSeed();
+</script>
+{{ end }}

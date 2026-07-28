@@ -1,0 +1,174 @@
+{{/* Fragments shared by more than one page, parsed into every page alongside
+     layout.html. A service renders the same way on the dashboard and on the
+     services page because both call "svccard" rather than repeating the
+     markup - which is the same reason app.css exists. */}}
+
+{{- define "state" -}}
+  {{- if .OK }}<span class="state ok">ok</span>
+  {{- else if .Unavailable }}<span class="state unavailable">unavailable</span>
+  {{- else }}<span class="state disabled">not configured</span>{{ end -}}
+{{- end -}}
+
+{{- define "unavail" -}}
+  {{- if .Disabled }}<p class="note">Not configured. {{ .Error }}</p>
+  {{- else }}<p class="note err">Source unavailable: {{ .Error }}</p>{{ end -}}
+{{- end -}}
+
+{{/* svcstate: a ServiceRow's one-word state. "stopped" and "not deployed" are
+     deliberately different colors: the first is something to fix. */}}
+{{- define "svcstate" -}}
+  {{- if .Running }}<span class="state ok">running</span>
+  {{- else if .Degraded }}<span class="state warn">degraded</span>
+  {{- else if .Stopped }}<span class="state bad">stopped</span>
+  {{- else }}<span class="state off">not deployed</span>{{ end -}}
+{{- end -}}
+
+{{/* svccard: one ServiceRow. The card is a div rather than an anchor because it
+     carries a Restart button, and a button inside an anchor is invalid markup
+     with two click targets fighting over the same pixels. The name is the
+     link. */}}
+{{ define "svccard" }}
+<div class="svccard">
+  <div class="head">
+    <span class="dot{{ if .Running }} ok{{ else if .Degraded }} warn{{ else if .Stopped }} bad{{ end }}"></span>
+    <a class="name" href="/service/{{ .Name }}">{{ .Name }}</a>
+    {{- if .Core }}<span class="badge off">core</span>{{ end }}
+    {{ template "svcstate" . }}
+  </div>
+  <dl>
+    {{- if .FQDN }}
+    <dt>Address</dt>
+    <dd>{{ if .URL }}<a class="mono" href="{{ .URL }}" target="_blank" rel="noopener">{{ .FQDN }}</a>
+        {{- else }}<span class="mono">{{ .FQDN }}</span>{{ end }}</dd>
+    {{- end }}
+    {{- if .DataDir }}
+    <dt>Data</dt><dd class="mono" title="{{ .DataDir }}">{{ .DataDir }}</dd>
+    {{- end }}
+    <dt>Containers</dt>
+    <dd>{{ len .Containers }}{{ with .RunningCount }} <span class="dim">({{ . }} up)</span>{{ end }}</dd>
+    {{- if .LastAt }}
+    <dt>Deployed</dt><dd title="{{ .LastAction }} {{ .LastResult }}">{{ .LastAt }}</dd>
+    {{- end }}
+  </dl>
+  <div class="cardactions">
+    <a class="btn act" href="/service/{{ .Name }}">Details</a>
+    {{- if .Containers }}
+    <button class="act" onclick="restartService(this, '{{ .Name }}')">Restart</button>
+    {{- end }}
+  </div>
+</div>
+{{ end }}
+
+{{/* accesscard: one access.Entry. Passwords render masked; the value is still
+     in the DOM and the README says lab-only, but a dashboard left open on a
+     projector is the failure mode this actually prevents. */}}
+{{ define "accesscard" }}
+<div class="svccard">
+  <div class="head"><span class="name">{{ .Name }}</span></div>
+  <dl>
+    <dt>URL</dt>
+    <dd><a class="mono" href="{{ .URL }}" target="_blank" rel="noopener">{{ .URL }}</a></dd>
+    {{- if .Username }}
+    <dt>User</dt>
+    <dd class="copyrow"><span class="val mono">{{ .Username }}</span>
+      <button class="act ghost" onclick="copyValue(this)" title="Copy">copy</button></dd>
+    {{- end }}
+    {{- if .Password }}
+    <dt>Password</dt>
+    <dd class="copyrow"><span class="val mono masked">{{ .Password }}</span>
+      <button class="act ghost" onclick="toggleSecret(this)">show</button>
+      <button class="act ghost" onclick="copyValue(this)" title="Copy">copy</button></dd>
+    {{- end }}
+  </dl>
+  {{- if .Note }}<p class="note tight">{{ .Note }}</p>{{ end }}
+  {{- if .Details }}
+  <details class="sub">
+    <summary class="note">Identity source values for the vCenter/VCF SSO wizard</summary>
+    <dl class="kv">
+      {{- range .Details }}
+      <dt>{{ .Label }}</dt><dd class="mono">{{ .Value }}</dd>
+      {{- end }}
+    </dl>
+  </details>
+  {{- end }}
+</div>
+{{ end }}
+
+{{/* containers: the table under a service. Shared by the services page and the
+     per-service page. */}}
+{{ define "containers" }}
+<table>
+  <tr><th>Container</th><th>State</th><th>Uptime</th><th class="mono">Image</th></tr>
+  {{- range . }}
+  <tr>
+    <td>{{ .Name }}</td>
+    <td>
+      {{- if eq .State "running" }}<span class="badge ok">running</span>
+      {{- else }}<span class="badge bad">{{ .State }}</span>{{ end }}
+      {{- if eq .Health "unhealthy" }} <span class="badge bad">unhealthy</span>
+      {{- else if eq .Health "starting" }} <span class="badge warn">starting</span>{{ end }}
+    </td>
+    <td>{{ .Uptime }}</td>
+    <td class="mono">{{ .Image }}</td>
+  </tr>
+  {{- end }}
+</table>
+{{ end }}
+
+{{/* svcscripts: restart plus the copy/reveal helpers. Pages that also
+     auto-refresh define refresh(); the rest reload. */}}
+{{ define "svcscripts" }}
+<script>
+async function restartService(btn, name) {
+  if (!confirm('Restart ' + name + '? Its containers stop and start again.')) return;
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = 'Restarting...';
+  try {
+    const resp = await fetch('/api/services/' + encodeURIComponent(name) + '/restart', { method: 'POST' });
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(body.error || ('HTTP ' + resp.status));
+    btn.textContent = 'Restarted';
+    if (typeof refresh === 'function') refresh(); else location.reload();
+  } catch (e) {
+    alert('Restart ' + name + ' failed: ' + e.message);
+    btn.textContent = label;
+    btn.disabled = false;
+  }
+}
+
+function toggleSecret(btn) {
+  const val = btn.closest('dd, td').querySelector('.val');
+  const hidden = val.classList.toggle('masked');
+  btn.textContent = hidden ? 'show' : 'hide';
+}
+
+// navigator.clipboard needs a secure context. The control plane serves plain
+// HTTP on its bootstrap port until the CA is up, so fall back to a selection
+// copy rather than failing silently on the one path an operator uses first.
+async function copyValue(btn) {
+  const val = btn.closest('dd, td').querySelector('.val');
+  const text = val.textContent;
+  const label = btn.textContent;
+  let done = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      done = true;
+    }
+  } catch (e) { /* fall through */ }
+  if (!done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    ta.remove();
+  }
+  btn.textContent = done ? 'copied' : 'failed';
+  setTimeout(function () { btn.textContent = label; }, 1200);
+}
+</script>
+{{ end }}

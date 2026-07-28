@@ -1,0 +1,46 @@
+services:
+  lldap:
+    image: docker.io/lldap/lldap:v0.6.3
+    restart: unless-stopped
+    # No `user:` override: the image entrypoint must start as root to chown
+    # /app and /data, then drops privileges to its built-in UID/GID (1000:1000)
+    # via gosu. Forcing user 1000 makes that chown fail and the entrypoint
+    # aborts, so nothing ever listens on 17170.
+    environment:
+      LLDAP_LDAP_BASE_DN: "dc=sddc,dc=lab"
+      LLDAP_LDAP_USER_DN: "admin"
+      LLDAP_LDAP_USER_PASS: "lldappass"
+      LLDAP_JWT_SECRET: "jwtsecret"
+      LLDAP_KEY_SEED: "keyseed"
+      LLDAP_HTTP_URL: "https://ldap.sddc.lab"
+      LLDAP_LDAP_PORT: "3890"
+      LLDAP_HTTP_PORT: "17170"
+      LLDAP_LDAPS_OPTIONS__ENABLED: "true"
+      LLDAP_LDAPS_OPTIONS__PORT: "6360"
+      LLDAP_LDAPS_OPTIONS__CERT_FILE: "/certs/lldap.crt"
+      LLDAP_LDAPS_OPTIONS__KEY_FILE: "/certs/lldap.key"
+    # TLS for the admin UI is terminated by Traefik; the UI serves plain HTTP on
+    # 17170, fronted at https://ldap.sddc.lab, with its host port on the
+    # loopback for deploy-time readiness. LDAP (3890) and LDAPS (6360, step-ca
+    # leaf) are published for appliance binds.
+    ports:
+      - "3890:3890"
+      - "6360:6360"
+      - "127.0.0.1:17170:17170"
+    volumes:
+      - /opt/labprovider/lldap/data:/data
+      - /opt/labprovider/lldap/certs:/certs:ro
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.lldap.rule=Host(`ldap.sddc.lab`)"
+      - "traefik.http.routers.lldap.entrypoints=websecure"
+      - "traefik.http.routers.lldap.tls=true"
+      - "traefik.http.services.lldap.loadbalancer.server.port=17170"
+
+networks:
+  proxy:
+    external: true

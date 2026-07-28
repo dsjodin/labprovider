@@ -1,0 +1,34 @@
+services:
+  dns-sync:
+    image: {{.DNS_SYNC_IMAGE}}
+    restart: unless-stopped
+    user: "1000:1000"
+    # host networking so the 127.0.0.1 pins reach Traefik on :443 (which fronts
+    # NetBox and Technitium by FQDN); on the default bridge, 127.0.0.1 would be
+    # the container's own loopback.
+    network_mode: host
+    extra_hosts:
+      - "{{.DNS_SYNC_NETBOX_HOST}}:127.0.0.1"
+      - "{{.DNS_SYNC_TECHNITIUM_HOST}}:127.0.0.1"
+    environment:
+      NETBOX_URL: "{{.DNS_SYNC_NETBOX_URL}}"
+      NETBOX_TOKEN_FILE: "/run/labprovider/secrets/netbox.token"
+      NETBOX_CA_BUNDLE: "/etc/labprovider/certs/root_ca.crt"
+      TECHNITIUM_URL: "{{.DNS_SYNC_TECHNITIUM_URL}}"
+      TECHNITIUM_TOKEN_FILE: "/run/labprovider/secrets/technitium.token"
+      TECHNITIUM_CA_BUNDLE: "/etc/labprovider/certs/root_ca.crt"
+      DNS_SYNC_INTERVAL: "{{.DNS_SYNC_INTERVAL}}"
+      DNS_SYNC_BUILTIN_RECORDS: "{{.DNS_SYNC_BUILTIN_RECORDS}}"
+      # Live built-in set, re-read every pass. The control plane rewrites it on
+      # config save so added/removed services converge without a redeploy;
+      # DNS_SYNC_BUILTIN_RECORDS above is the initial/fallback set.
+      DNS_SYNC_BUILTIN_RECORDS_FILE: "/etc/labprovider/dns-sync/builtin-records"
+      # Non-admin Technitium user the read-only dashboard authenticates as.
+      # dns-sync grants it View on each newly created zone so continuously-synced
+      # zones appear in the dashboard without a technitium re-deploy. Best-effort;
+      # empty disables the grant.
+      DNS_SYNC_TECHNITIUM_DASHBOARD_USER: "{{.DNS_SYNC_TECHNITIUM_DASHBOARD_USER}}"
+    volumes:
+      - {{.DNS_SYNC_SECRETS_DIR}}:/run/labprovider/secrets:ro
+      - {{.DNS_SYNC_DIR}}:/etc/labprovider/dns-sync:ro
+      - {{.CA_DATA_DIR}}/certs/root_ca.crt:/etc/labprovider/certs/root_ca.crt:ro

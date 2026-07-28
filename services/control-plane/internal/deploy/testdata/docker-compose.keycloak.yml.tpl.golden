@@ -1,0 +1,38 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    restart: unless-stopped
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "kcadmin"
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_HEALTH_ENABLED: "false"
+    # TLS is terminated by Traefik; Keycloak serves plain HTTP on 8080, trusts
+    # the proxy's X-Forwarded-* headers, and advertises the portless external URL.
+    # The host port is kept on the loopback for deploy-time readiness.
+    ports:
+      - "127.0.0.1:8443:8080"
+    volumes:
+      - /opt/labprovider/keycloak/data:/opt/keycloak/data
+      - /opt/labprovider/runtime/keycloak/import:/opt/keycloak/data/import:ro
+    command:
+      - start
+      - --import-realm
+      - --http-enabled=true
+      - --proxy-headers=xforwarded
+      - --hostname-strict=false
+      - --hostname=https://auth.sddc.lab
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.keycloak.rule=Host(`auth.sddc.lab`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls=true"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+
+networks:
+  proxy:
+    external: true

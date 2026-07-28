@@ -1,0 +1,16 @@
+server 0.se.pool.ntp.org iburst
+server 1.se.pool.ntp.org iburst
+server 2.se.pool.ntp.org iburst
+
+allow 10.0.0.0/8
+allow 172.16.0.0/12
+allow 192.168.0.0/16
+
+driftfile /var/lib/chrony/chrony.drift
+makestep 1.0 3
+rtcsync
+
+# Run as root (no privilege drop): the container already drops all capabilities
+# except SYS_TIME, so chronyd cannot chown its runtime dir to a lesser user, and
+# a dropped user cannot write the pidfile, command socket, or driftfile.
+user root

@@ -1,0 +1,150 @@
+{{/* Shared page chrome. Every page defines "content"; pages that need a
+     different header override "topbar". "bare" is the no-sidebar variant used
+     by the login and setup forms, which render before there is a session. */}}
+
+{{ define "layout" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ .Title }} &middot; labprovider</title>
+<link rel="stylesheet" href="{{ asset "open-props.min.css" }}">
+<link rel="stylesheet" href="{{ asset "app.css" }}">
+</head>
+<body>
+{{ template "icons" }}
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/">
+      <svg width="20" height="20" aria-hidden="true"><use href="#i-logo"/></svg>
+      labprovider
+    </a>
+    <nav>
+      <div class="navgroup">Platform</div>
+      {{ template "navlink" navitem $.Nav "dashboard" "/" "Dashboard" "grid" }}
+      {{- if .HasEngine }}
+      {{ template "navlink" navitem $.Nav "services" "/services" "Services" "box" }}
+      {{- end }}
+
+      {{- if .HasEngine }}
+      <div class="navgroup">Configuration</div>
+      {{ template "navlink" navitem $.Nav "config" "/config" "Configuration" "sliders" }}
+
+      {{- end }}
+
+      {{- if or .HasEngine .HasDocker }}
+      <div class="navgroup">Operations</div>
+      {{- if .HasEngine }}
+      {{ template "navlink" navitem $.Nav "deploy" "/deploy" "Deploy" "play" }}
+      {{- end }}
+      {{- if .HasDocker }}
+      {{ template "navlink" navitem $.Nav "logs" "/logs" "Logs" "lines" }}
+      {{- end }}
+      {{- if .HasEngine }}
+      {{ template "navlink" navitem $.Nav "csr" "/csr" "Sign CSR" "shield" }}
+      {{- end }}
+      {{- end }}
+
+      {{- if .HasAuth }}
+      <div class="navgroup">Administration</div>
+      {{ template "navlink" navitem $.Nav "account" "/account" "Account" "user" }}
+      <a href="#" onclick="signOut(event)">
+        <svg width="16" height="16" aria-hidden="true"><use href="#i-logout"/></svg>
+        Sign out
+      </a>
+      {{- end }}
+    </nav>
+    <div class="spacer"></div>
+    <div class="build" title="The running control-plane build">{{ .Version }}</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      {{- block "topbar" . }}<h1>{{ .Title }}</h1>{{ end }}
+    </header>
+    <div class="content{{ if .Narrow }} narrow{{ end }}">
+      {{- template "content" . }}
+    </div>
+  </div>
+</div>
+{{- if .HasAuth }}
+<script>
+function signOut(e) {
+  e.preventDefault();
+  fetch('/api/logout', {method: 'POST'}).then(function () { location.href = '/login'; });
+}
+</script>
+{{- end }}
+{{- block "scripts" . }}{{ end }}
+</body>
+</html>
+{{ end }}
+
+{{/* bare: login and setup, which have no session and therefore no sidebar. */}}
+{{ define "bare" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ .Title }} &middot; labprovider</title>
+<link rel="stylesheet" href="{{ asset "open-props.min.css" }}">
+<link rel="stylesheet" href="{{ asset "app.css" }}">
+</head>
+<body>
+{{ template "icons" }}
+<div class="centered">
+  <div class="card">
+    {{- template "content" . }}
+  </div>
+</div>
+{{- block "scripts" . }}{{ end }}
+</body>
+</html>
+{{ end }}
+
+{{ define "navlink" }}
+<a href="{{ .Href }}"{{ if .Active }} aria-current="page"{{ end }}>
+  <svg width="16" height="16" aria-hidden="true"><use href="#i-{{ .Icon }}"/></svg>
+  {{ .Label }}
+</a>
+{{ end }}
+
+{{/* One inline sprite instead of an icon package: ten paths do not justify a
+     dependency, and this keeps the page a single request. */}}
+{{ define "icons" }}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M12 22V12"/><path d="m3 7 9 5 9-5"/>
+  </symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+    <rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>
+  </symbol>
+  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/>
+  </symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 21v-6M4 11V3M12 21v-9M12 8V3M20 21v-4M20 13V3M1 15h6M9 8h6M17 17h6"/>
+  </symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 4.5v15l13-7.5z"/>
+  </symbol>
+  <symbol id="i-lines" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6h16M4 10h11M4 14h16M4 18h8"/>
+  </symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+  </symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>
+  </symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+  </symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>
+  </symbol>
+</svg>
+{{ end }}

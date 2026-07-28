@@ -1,0 +1,211 @@
+<mxfile host="Electron">
+  <diagram name="labprovider-overview" id="labprovider-v2">
+    <mxGraphModel dx="1300" dy="1007" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1720" pageHeight="960" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cons-box" value="" style="rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="40" y="250" width="300" height="392" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-title" value="&lt;b&gt;Service Consumers&lt;/b&gt;" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=15;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="40" y="258" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-0" value="&lt;b&gt;VCF Installer&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="58" y="305" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-1" value="&lt;b&gt;SDDC Manager&lt;/b&gt;&lt;br&gt;(MSCA client)" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="192" y="305" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-2" value="&lt;b&gt;vCenter&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="58" y="367" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-3" value="&lt;b&gt;ESXi hosts&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="192" y="367" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-4" value="&lt;b&gt;NSX&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="58" y="429" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-5" value="&lt;b&gt;VCF Operations&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="192" y="429" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-6" value="&lt;b&gt;VCF Automation&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="58" y="491" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-7" value="&lt;b&gt;Lab clients&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="192" y="491" width="130" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-admin" value="&lt;b&gt;Admin workstation&lt;/b&gt;" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="58" y="553" width="264" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cons-note" value="Consumed at bare FQDNs on :443 through Traefik:&lt;br&gt;HTTPS UIs, OIDC / SCIM / LDAP identity,&lt;br&gt;PKI (step-ca + MSCA cert automation),&lt;br&gt;plus DNS, NTP, IPAM, S3, SFTP, SMB, syslog, mail." style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=left;fontColor=#333333;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="656" width="300" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="lp-box" value="" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="380" y="110" width="1010" height="800" as="geometry" />
+        </mxCell>
+        <mxCell id="lp-title" value="&lt;b&gt;labprovider v2&lt;/b&gt;&lt;br&gt;single-node, non-HA, fully containerized (Docker Compose, control-plane-driven)" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=16;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="380" y="120" width="1010" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cp" value="&lt;b&gt;Control plane (web UI)&lt;/b&gt;&lt;br&gt;config wizard, live deploy (SSE), read-only dashboard, CSR signing; MSCA emulator (certsrv, optional).&lt;br&gt;Container: root + host network + docker socket + /opt/labprovider + /host/etc. Started by install.sh." style="rounded=0;fillColor=#ffe6cc;strokeColor=#d79b00;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="400" y="168" width="970" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="tfk" value="&lt;b&gt;Traefik ingress   :80 / :443&lt;/b&gt;&lt;br&gt;Terminates TLS with one step-ca  *.&lt;domain&gt;  wildcard leaf; routes by Host to bare FQDNs.&lt;br&gt;docker-label provider (shared &#x27;proxy&#x27; network) for stacks  +  file provider for control plane &amp; certsrv." style="rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="400" y="246" width="970" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-box" value="" style="rounded=0;fillColor=#ffffff;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="400" y="333" width="970" height="442" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-title" value="&lt;b&gt;Docker Compose services&lt;/b&gt;&lt;br&gt;deployed / removed from the control plane, in dependency order" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="400" y="340" width="970" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-0" value="&lt;b&gt;step-ca&lt;/b&gt;&lt;br&gt;+ PostgreSQL, CRL" style="rounded=0;fillColor=#f8cecc;strokeColor=#b85450;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="415" y="378" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-1" value="&lt;b&gt;Technitium DNS&lt;/b&gt;&lt;br&gt;authoritative + forwarder" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="606" y="378" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-2" value="&lt;b&gt;Chrony&lt;/b&gt;&lt;br&gt;NTP (SYS_TIME)" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="797" y="378" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-3" value="&lt;b&gt;rsyslog&lt;/b&gt;&lt;br&gt;syslog sink" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="988" y="378" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-4" value="&lt;b&gt;NetBox&lt;/b&gt;&lt;br&gt;IPAM / DCIM (+PG, Redis)" style="rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1179" y="378" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-5" value="&lt;b&gt;dns-sync&lt;/b&gt;&lt;br&gt;NetBox -&gt; Technitium" style="rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="415" y="470" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-6" value="&lt;b&gt;Keycloak&lt;/b&gt;&lt;br&gt;OIDC IdP" style="rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="606" y="470" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-7" value="&lt;b&gt;Authentik&lt;/b&gt;&lt;br&gt;OIDC + SCIM 2.0" style="rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="797" y="470" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-8" value="&lt;b&gt;Zitadel&lt;/b&gt;&lt;br&gt;OIDC IdP (+PG)" style="rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="988" y="470" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-9" value="&lt;b&gt;LLDAP&lt;/b&gt;&lt;br&gt;LDAP directory" style="rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1179" y="470" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-10" value="&lt;b&gt;SeaweedFS&lt;/b&gt;&lt;br&gt;S3-compatible" style="rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="415" y="562" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-11" value="&lt;b&gt;SFTPGo&lt;/b&gt;&lt;br&gt;SFTP + admin UI" style="rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="606" y="562" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-12" value="&lt;b&gt;Samba&lt;/b&gt;&lt;br&gt;SMB share" style="rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="797" y="562" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-13" value="&lt;b&gt;Mailpit&lt;/b&gt;&lt;br&gt;SMTP sink + UI" style="rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="988" y="562" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="svc-14" value="&lt;b&gt;VCF depot&lt;/b&gt;&lt;br&gt;nginx, basic-auth" style="rounded=0;fillColor=#ffe6cc;strokeColor=#d79b00;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1179" y="562" width="176" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-sq-0" value="" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="420" y="656" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-tx-0" value="Core infra" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=left;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="440" y="653" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-sq-1" value="" style="rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="575" y="656" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-tx-1" value="Identity" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=left;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="595" y="653" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-sq-2" value="" style="rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="730" y="656" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-tx-2" value="Source of truth" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=left;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="750" y="653" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-sq-3" value="" style="rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="885" y="656" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-tx-3" value="Storage &amp; transfer" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=left;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="905" y="653" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-sq-4" value="" style="rounded=0;fillColor=#f8cecc;strokeColor=#b85450;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="656" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-tx-4" value="CA / PKI" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=left;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="653" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-sq-5" value="" style="rounded=0;fillColor=#ffe6cc;strokeColor=#d79b00;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1195" y="656" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-tx-5" value="VCF" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=left;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1215" y="653" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="note-ca" value="step-ca is the internal CA - CA_FQDN pinned to 127.0.0.1 so certificates issue before DNS / Traefik exist.&lt;br&gt;Traefik serves the shared *.&lt;domain&gt; wildcard; the control plane and certsrv keep their own leaf." style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=center;fontColor=#b85450;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="415" y="688" width="940" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="note-msca" value="MSCA emulator flow:  VCF / SDDC Manager -&gt; https://certsrv.&lt;domain&gt;/certsrv (Basic Auth, via Traefik)&lt;br&gt;-&gt; control-plane SignCSR -&gt; step-ca, automating VCF certificate replacement via its Microsoft-CA integration." style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=middle;align=center;fontColor=#333333;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="415" y="726" width="940" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="hf-title" value="&lt;b&gt;Host foundation&lt;/b&gt;" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="400" y="788" width="970" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="hf-0" value="&lt;b&gt;Host identity&lt;/b&gt;&lt;br&gt;FQDN + IP" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="415" y="814" width="300" height="58" as="geometry" />
+        </mxCell>
+        <mxCell id="hf-1" value="&lt;b&gt;Host prep&lt;/b&gt;&lt;br&gt;Docker install; disable resolved stub&lt;br&gt;+ timesyncd; create &#x27;proxy&#x27; network" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="725" y="814" width="300" height="58" as="geometry" />
+        </mxCell>
+        <mxCell id="hf-2" value="&lt;b&gt;Configuration&lt;/b&gt;&lt;br&gt;labprovider.env + dns.seed" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1035" y="814" width="300" height="58" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-box" value="" style="rounded=0;fillColor=#ffffff;strokeColor=#333333;whiteSpace=wrap;html=1;fontSize=13;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="250" width="250" height="400" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-title" value="&lt;b&gt;External dependencies&lt;/b&gt;&lt;br&gt;(bootstrap &amp; runtime)" style="text;strokeColor=none;fillColor=none;rounded=0;whiteSpace=wrap;html=1;fontSize=14;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="260" width="250" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-0" value="&lt;b&gt;OS package repositories&lt;/b&gt;&lt;br&gt;apt / dnf" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="318" width="210" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-1" value="&lt;b&gt;Docker repositories&lt;/b&gt;&lt;br&gt;image pulls" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="398" width="210" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-2" value="&lt;b&gt;Upstream DNS&lt;/b&gt;&lt;br&gt;Technitium forwards" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="478" width="210" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-3" value="&lt;b&gt;Upstream NTP&lt;/b&gt;&lt;br&gt;chrony syncs" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;html=1;fontSize=12;verticalAlign=middle;align=center;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="558" width="210" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-0" value="consumes" style="endArrow=classic;html=1;rounded=0;strokeColor=#333333;;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="340" y="430" as="sourcePoint" />
+            <mxPoint x="400" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-1" value="packages" style="endArrow=classic;html=1;rounded=0;strokeColor=#333333;;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1370" y="350" as="sourcePoint" />
+            <mxPoint x="1450" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-2" value="images" style="endArrow=classic;html=1;rounded=0;strokeColor=#333333;;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1370" y="430" as="sourcePoint" />
+            <mxPoint x="1450" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-3" value="DNS fwd" style="endArrow=classic;html=1;rounded=0;strokeColor=#333333;;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1370" y="510" as="sourcePoint" />
+            <mxPoint x="1450" y="510" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-4" value="NTP sync" style="endArrow=classic;html=1;rounded=0;strokeColor=#333333;;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1370" y="590" as="sourcePoint" />
+            <mxPoint x="1450" y="590" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

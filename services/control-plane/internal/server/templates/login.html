@@ -1,0 +1,96 @@
+{{ define "content" }}
+<form id="form" onsubmit="submitForm(event)">
+  <h1>
+    <svg width="18" height="18" style="vertical-align:-3px;color:var(--accent)" aria-hidden="true">
+      <use href="#i-logo"/>
+    </svg>
+    labprovider
+  </h1>
+  <p class="note" id="intro" style="margin-top:0">Sign in to the control plane.</p>
+
+  <label class="field" for="username">Username</label>
+  <input id="username" name="username" type="text" autocomplete="username" autofocus required>
+
+  <label class="field" for="password">Password</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+  {{- if .NeedToken }}
+  <div id="tokenField" style="display:none">
+    <label class="field" for="token">Setup token</label>
+    <input id="token" name="token" type="text" autocomplete="off" spellcheck="false">
+    <p class="note tight">Printed by <span class="mono">install.sh</span>, and in
+      <span class="mono">docker logs labprovider-control-plane</span>. It authorizes this
+      one account and is deleted afterwards.</p>
+  </div>
+  {{- end }}
+
+  <button type="submit" id="submit" class="primary" style="width:100%;margin-top:var(--size-4)">Sign in</button>
+  <span id="status"></span>
+
+  <p class="warn note" id="httpWarning" style="display:none">
+    This page is served over plain HTTP, so your password crosses the network in the
+    clear. That is the bootstrap window before step-ca issues the control plane its
+    own certificate; once Traefik fronts it, use <span class="mono">https://</span>.
+  </p>
+</form>
+
+<style>
+  .field { display: block; font-size: 12px; color: var(--fg-muted); margin: var(--size-3) 0 5px; }
+  #status { display: block; font-size: 13px; margin-top: var(--size-3); min-height: 19px; }
+  #status.bad { color: var(--bad); }
+  #status.ok { color: var(--ok); }
+  .warn { margin: var(--size-4) 0 0; padding-top: var(--size-3); border-top: 1px solid var(--border); font-size: 12px; }
+</style>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+const setup = location.pathname === '/setup';
+const statusEl = document.getElementById('status');
+
+const tokenField = document.getElementById('tokenField');
+if (setup) {
+  document.getElementById('intro').textContent =
+    'No operator account exists yet. Create one to secure the control plane.';
+  document.getElementById('password').autocomplete = 'new-password';
+  document.getElementById('submit').textContent = 'Create account';
+  if (tokenField) {
+    tokenField.style.display = 'block';
+    document.getElementById('token').required = true;
+  }
+}
+if (location.protocol === 'http:') {
+  document.getElementById('httpWarning').style.display = 'block';
+}
+
+async function submitForm(ev) {
+  ev.preventDefault();
+  statusEl.className = '';
+  statusEl.textContent = setup ? 'Creating...' : 'Signing in...';
+  const body = {
+    username: document.getElementById('username').value,
+    password: document.getElementById('password').value,
+  };
+  if (setup && tokenField) {
+    body.token = document.getElementById('token').value;
+  }
+  const res = await fetch(setup ? '/api/setup' : '/api/login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    statusEl.className = 'bad';
+    statusEl.textContent = data.error || 'Sign in failed.';
+    return;
+  }
+  statusEl.className = 'ok';
+  statusEl.textContent = 'Signed in.';
+  const next = new URLSearchParams(location.search).get('next');
+  // Only same-origin relative paths, so a crafted ?next= cannot bounce the
+  // operator off-site straight after authenticating.
+  location.href = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
+}
+</script>
+{{ end }}
